@@ -20,6 +20,10 @@ urlpatterns = [
     # API Routes
     path('api/auth/', include('apps.accounts.urls')),
     path('api/tenants/', include('apps.tenants.urls')),
+    path('api/patients/', include('apps.patients.urls')),
+    path('api/clinical-records/', include('apps.clinical_records.urls')),
+    path('api/documents/', include('apps.documents.urls')),
+    path('api/audit/', include('apps.audit.urls')),
 ]
 
 # Serve media files in development
@@ -30,4 +34,4 @@ if settings.DEBUG:
 # Customize admin
 admin.site.site_header = "CliniDocs Administration"
 admin.site.site_title = "CliniDocs Admin"
-admin.site.index_title = "Bienvenido a CliniDocs Administration"
+admin.site.index_title = "Welcome to CliniDocs Administration"

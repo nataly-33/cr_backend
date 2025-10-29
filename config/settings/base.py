@@ -30,6 +30,10 @@ INSTALLED_APPS = [
     'apps.core',
     'apps.accounts',
     'apps.tenants',
+    'apps.patients',
+    'apps.clinical_records',
+    'apps.documents',
+    'apps.audit',
 ]
 
 MIDDLEWARE = [
@@ -44,6 +48,7 @@ MIDDLEWARE = [
 
     # Custom middleware
     'apps.core.middleware.TenantMiddleware',
+    'apps.audit.middleware.AuditLogMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -171,3 +176,22 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+
+# AWS Configuration
+AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+
+# S3 Configuration
+AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
+AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com'
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
+AWS_S3_FILE_OVERWRITE = False
+AWS_DEFAULT_ACL = 'private'
+AWS_S3_VERIFY = True
+
+# Textract Configuration
+AWS_TEXTRACT_REGION = config('AWS_TEXTRACT_REGION', default='us-east-1')
+
