@@ -1,0 +1,212 @@
+from rest_framework import viewsets, status, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework_simplejwt.views import TokenObtainPairView
+from django.contrib.auth import logout
+from django.db import transaction
+from django.utils.text import slugify
+from datetime import timedelta
+from django.utils import timezone
+from drf_spectacular.utils import extend_schema
+
+from .models import User, Role, Permission, UserPreferences
+from .serializers import (
+    UserSerializer, UserCreateSerializer, RoleSerializer,
+    PermissionSerializer, ChangePasswordSerializer,
+    CustomTokenObtainPairSerializer, RegisterSerializer,
+    UserPreferencesSerializer
+)
+from apps.core.models import Tenant, set_current_tenant
+
+
+@extend_schema(tags=['Accounts'])
+class CustomTokenObtainPairView(TokenObtainPairView):
+    """Vista personalizada para obtener JWT"""
+    serializer_class = CustomTokenObtainPairSerializer
+
+
+@extend_schema(tags=['Accounts'])
+class RegisterView(viewsets.GenericViewSet):
+    """Vista para registro de nuevos tenants"""
+    permission_classes = [permissions.AllowAny]
+    serializer_class = RegisterSerializer
+
+    @transaction.atomic
+    @action(detail=False, methods=['post'])
+    def register(self, request):
+        """Registra un nuevo tenant con usuario admin"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+
+        # Crear tenant
+        tenant = Tenant.objects.create(
+            name=data['tenant_name'],
+            slug=slugify(data['tenant_name']),
+            subdomain=data['tenant_subdomain'],
+            email=data['email'],
+            phone=data.get('phone', ''),
+            subscription_plan='trial',
+            subscription_status='trial',
+            subscription_start=timezone.now(),
+            subscription_end=timezone.now() + timedelta(days=30)
+        )
+
+        # Establecer tenant en contexto
+        set_current_tenant(tenant)
+
+        # Crear rol admin
+        admin_role = Role.objects.create(
+            tenant=tenant,
+            name='Administrador',
+            description='Rol con todos los permisos',
+            is_system_role=True
+        )
+
+        # Crear permisos básicos
+        resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report']
+        actions = ['create', 'read', 'update', 'delete']
+
+        permissions_list = []
+        for resource in resources:
+            for action in actions:
+                perm = Permission.objects.create(
+                    tenant=tenant,
+                    name=f'{action.title()} {resource}',
+                    code=f'{resource}.{action}',
+                    resource=resource,
+                    action=action
+                )
+                permissions_list.append(perm)
+
+        admin_role.permissions.set(permissions_list)
+
+        # Crear usuario admin
+        user = User.objects.create_user(
+            tenant=tenant,
+            email=data['email'],
+            password=data['password'],
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            phone=data.get('phone', ''),
+            role=admin_role,
+            is_active=True,
+            is_staff=True
+        )
+
+        return Response({
+            'message': 'Registro exitoso',
+            'tenant': {
+                'id': str(tenant.id),
+                'name': tenant.name,
+                'subdomain': tenant.subdomain
+            },
+            'user': UserSerializer(user).data
+        }, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(tags=['Accounts'])
+class UserViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestión de usuarios"""
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return UserCreateSerializer
+        return UserSerializer
+
+    def get_queryset(self):
+        """Filtrar usuarios del tenant actual"""
+        if self.request.user.is_superuser:
+            return User.objects.all()
+        return User.objects.filter(tenant=self.request.tenant)
+
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        """Retorna el usuario actual"""
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def change_password(self, request, pk=None):
+        """Cambiar contraseña del usuario"""
+        user = self.get_object()
+
+        # Solo el usuario mismo o admin puede cambiar la contraseña
+        if request.user != user and not request.user.is_staff:
+            return Response(
+                {'error': 'No tienes permiso para cambiar esta contraseña'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        user.set_password(serializer.validated_data['new_password'])
+        user.save()
+
+        return Response({'message': 'Contraseña actualizada exitosamente'})
+
+    @action(detail=True, methods=['post'])
+    def toggle_active(self, request, pk=None):
+        """Activar/desactivar usuario"""
+        user = self.get_object()
+        user.is_active = not user.is_active
+        user.save()
+
+        return Response({
+            'message': f"Usuario {'activado' if user.is_active else 'desactivado'}",
+            'is_active': user.is_active
+        })
+
+    @action(detail=False, methods=['put'])
+    def update_preferences(self, request):
+        """Actualizar preferencias del usuario"""
+        preferences = request.user.preferences
+        serializer = UserPreferencesSerializer(
+            preferences,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(serializer.data)
+
+
+@extend_schema(tags=['Accounts'])
+class RoleViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestión de roles"""
+    queryset = Role.objects.all()
+    serializer_class = RoleSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Role.objects.filter(tenant=self.request.tenant)
+
+    def destroy(self, request, *args, **kwargs):
+        """No permitir eliminar roles del sistema"""
+        instance = self.get_object()
+        if instance.is_system_role:
+            return Response(
+                {'error': 'No se pueden eliminar roles del sistema'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().destroy(request, *args, **kwargs)
+
+
+@extend_schema(tags=['Accounts'])
+class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet para listar permisos (solo lectura)"""
+    queryset = Permission.objects.all()
+    serializer_class = PermissionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Permission.objects.filter(tenant=self.request.tenant)
