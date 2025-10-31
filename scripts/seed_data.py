@@ -28,7 +28,7 @@ np.random.seed(42)
 
 def create_tenants():
     """Crea 2 tenants de prueba"""
-    print("🏥 Creando tenants...")
+    print("[+] Creando tenants...")
     
     tenants_data = [
         {
