@@ -7,13 +7,31 @@ from drf_spectacular.utils import extend_schema
 
 from .models import ClinicalRecord
 from .serializers import ClinicalRecordSerializer, ClinicalRecordCreateSerializer
+from apps.core.permissions import (
+    IsTenantMember,
+    CanManageClinicalRecords,
+    PermissionByActionMixin
+)
 
 
 @extend_schema(tags=['Clinic Record'])
-class ClinicalRecordViewSet(viewsets.ModelViewSet):
-    """ViewSet para gestión de historias clínicas"""
+class ClinicalRecordViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de historias clínicas.
+    
+    Permisos requeridos:
+    - list/retrieve: clinical_record.read
+    - create: clinical_record.create
+    - update: clinical_record.update
+    - delete: clinical_record.delete
+    
+    Reglas especiales:
+    - Pacientes solo pueden ver SU propia historia clínica
+    - Doctores pueden gestionar todas las historias de su tenant
+    """
     queryset = ClinicalRecord.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsTenantMember, CanManageClinicalRecords]
+    resource_name = 'clinical_record'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['record_number', 'patient__first_name', 'patient__last_name']
     filterset_fields = ['status', 'patient']

@@ -18,6 +18,12 @@ from .serializers import (
     DocumentAccessLogSerializer
 )
 from .services import DocumentService
+from apps.core.permissions import (
+    IsTenantMember,
+    CanManageDocuments,
+    PermissionByActionMixin,
+    PermissionCodes
+)
 
 @extend_schema_view(
     list=extend_schema(
@@ -60,10 +66,20 @@ from .services import DocumentService
         tags=['documents'],
     ),
 )
-class ClinicalDocumentViewSet(viewsets.ModelViewSet):
-    """ViewSet para gestión de documentos clínicos"""
+class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de documentos clínicos.
+    
+    Permisos requeridos:
+    - list/retrieve: document.read
+    - create/upload: document.create
+    - update: document.update
+    - delete: document.delete
+    - sign: document.sign
+    """
     queryset = ClinicalDocument.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsTenantMember, CanManageDocuments]
+    resource_name = 'document'
     parser_classes = [MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'description', 'doctor_name', 'ocr_text']
