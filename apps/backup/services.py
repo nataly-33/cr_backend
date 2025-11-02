@@ -128,3 +128,41 @@ class BackupService:
             
         except Exception as e:
             raise Exception(f"Error al restaurar: {str(e)}")
+        
+    """       
+    def _upload_to_s3(self, local_path, filename):
+        Sube backup a S3
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            region_name=settings.AWS_S3_REGION_NAME
+        )
+        
+        s3_key = f"backups/{self.tenant.subdomain}/{filename}"
+        
+        s3_client.upload_file(
+            local_path,
+            settings.AWS_STORAGE_BUCKET_NAME,
+            s3_key,
+            ExtraArgs={'ServerSideEncryption': 'AES256'}
+        )
+        
+        # Generar URL firmada válida por 30 días
+        url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
+                'Key': s3_key
+            },
+            ExpiresIn=2592000  # 30 días
+        )
+        
+        return url
+
+    def _download_from_s3(self, s3_url, local_path):
+        Descarga backup desde S3
+        # Extraer bucket y key de la URL
+        # Implementación simplificada
+        pass
+    """

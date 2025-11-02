@@ -32,8 +32,8 @@ class BackupJob(BaseModel):
         related_name='backups'
     )
     
-    backup_type = models.CharField(max_length=50, choices=BACKUP_TYPE_CHOICES)
-    backup_scope = models.CharField(max_length=100, choices=SCOPE_CHOICES)
+    backup_type = models.CharField(max_length=50, choices=BACKUP_TYPE_CHOICES, default='full')
+    backup_scope = models.CharField(max_length=100, choices=SCOPE_CHOICES, default='system')
     
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
     
