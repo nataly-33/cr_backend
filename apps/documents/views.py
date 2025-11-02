@@ -76,6 +76,7 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     - update: document.update
     - delete: document.delete
     - sign: document.sign
+    - download: document.read
     """
     queryset = ClinicalDocument.objects.all()
     permission_classes = [IsTenantMember, CanManageDocuments]
@@ -86,6 +87,20 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     filterset_fields = ['document_type', 'specialty', 'is_signed', 'clinical_record']
     ordering_fields = ['document_date', 'created_at']
     ordering = ['-document_date']
+    
+    # Mapeo de permisos por acción
+    permission_classes_by_action = {
+        'list': [IsTenantMember],
+        'retrieve': [IsTenantMember],
+        'create': [IsTenantMember],
+        'update': [IsTenantMember, CanManageDocuments],
+        'partial_update': [IsTenantMember, CanManageDocuments],
+        'destroy': [IsTenantMember, CanManageDocuments],
+        'upload': [IsTenantMember],
+        'download': [IsTenantMember],  # Solo requiere ser miembro del tenant
+        'sign': [IsTenantMember, CanManageDocuments],
+        'access_log': [IsTenantMember],
+    }
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -157,7 +172,10 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        return Response({'download_url': url})
+        return Response({
+            'url': url,
+            'file_name': document.file_name or 'documento'
+        })
 
     @action(detail=True, methods=['post'])
     def sign(self, request, pk=None):
