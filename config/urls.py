@@ -16,6 +16,9 @@ urlpatterns = [
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+   
+    # API Routes - PÚBLICAS (sin JWT)
+    path('api/tenants/public/', include('apps.tenants.urls')),  # Incluye rutas públicas
 
     # API Routes
     path('api/auth/', include('apps.accounts.urls')),
@@ -35,6 +38,6 @@ if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 # Customize admin
-admin.site.site_header = "CliniDocs Administration"
-admin.site.site_title = "CliniDocs Admin"
-admin.site.index_title = "Welcome to CliniDocs Administration"
+admin.site.site_header = "Clinic Records Administration"
+admin.site.site_title = "Clinic Records Admin"
+admin.site.index_title = "Bienvenido a Clinic Records Administration"
