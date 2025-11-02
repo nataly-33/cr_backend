@@ -17,7 +17,7 @@ from .generators.pdf_generator import generate_documents_report
 from .generators.excel_generator import generate_documents_excel
 from .generators.csv_generator import generate_documents_csv
 from apps.documents.models import ClinicalDocument
-from apps.core.middleware import get_current_tenant
+from apps.core.models import get_current_tenant
 
 
 class ReportTemplateViewSet(viewsets.ModelViewSet):
@@ -174,8 +174,11 @@ class ReportGeneratorViewSet(viewsets.ViewSet):
     
     def _get_patients_data(self, filters):
         """Obtener datos de pacientes"""
+        #Implemenstar
+
         return {'total': 0}
     
     def _get_analytics_data(self, filters):
         """Obtener datos analíticos"""
+        #Implementar
         return {'total': 0}
