@@ -213,3 +213,18 @@ class TenantManager(models.Manager):
         if tenant:
             return qs.filter(tenant=tenant)
         return qs
+
+
+class BaseModel(models.Model):
+    """
+    Modelo base no ligado a un tenant. Proporciona campos comunes
+    (UUID PK, timestamps y soft delete). Usado por apps que no
+    necesitan heredar tenant
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
