@@ -79,9 +79,10 @@ Este proyecto se desarrolla en el marco de la materia de Ingeniería de Software
 - **Estado Global:** Zustand ✅
 - **Peticiones HTTP:** Axios ✅
 - **Routing:** React Router v6 ✅
-- **Formularios:** React Hook Form + Zod ⚠️ **PARCIAL**
+- **Formularios:** React Hook Form + Zod ✅ **IMPLEMENTADO**
 - **Gráficos:** Recharts ❌ **PENDIENTE**
-- **Notificaciones:** React Toastify ❌ **PENDIENTE**
+- **Notificaciones:** React Toastify ✅ **IMPLEMENTADO**
+- **Componentes UI:** Componentes custom (Button, Input, Modal, Table, etc.) ✅ **IMPLEMENTADO**
 
 ### 📱 Frontend Móvil
 
@@ -698,12 +699,20 @@ cr_frontend/
    - Accesible en /api/docs/
 
 9. ✅ **Seeders completos**
+
    - Superusuario ASU
    - 2 tenants con datos completos
    - Roles y permisos por tenant
    - 7 usuarios por tenant
    - 50 pacientes por tenant
    - Historias clínicas y documentos
+
+10. ✅ **Fixes y Mejoras** (NUEVO)
+    - Contraseñas actualizadas para usuarios de prueba (Admin1234)
+    - Permisos asignados correctamente a roles Doctor y Administrador
+    - ClinicalRecordCreateSerializer ahora devuelve `id` y `record_number`
+    - CORS configurado para múltiples puertos de desarrollo
+    - Middleware de tenant mejorado con detección desde JWT token
 
 #### Frontend (React):
 
@@ -720,6 +729,7 @@ cr_frontend/
    - Auth store con Zustand
    - ProtectedRoute
    - Interceptores Axios con JWT
+   - Refresh token automático
 
 3. ✅ **Layout básico**
 
@@ -728,8 +738,51 @@ cr_frontend/
    - Sidebar
 
 4. ✅ **Dashboard básico**
+
    - Dashboard para admin
    - Vista básica de estadísticas
+
+5. ✅ **Componentes UI Reutilizables** (NUEVO)
+
+   - Button (5 variants, loading states)
+   - Input (con validación y errores)
+   - Modal y ConfirmModal
+   - Table con Pagination
+   - Card y CardHeader
+   - Badge (5 variantes de color)
+   - SearchInput
+   - Loading/Spinner
+
+6. ✅ **Hooks Personalizados** (NUEVO)
+
+   - useModal - gestión de modales
+   - useTable - paginación, búsqueda, sorting
+   - useDebounce - debouncing de inputs
+
+7. ✅ **Utilidades** (NUEVO)
+
+   - toast.ts - sistema de notificaciones con react-toastify
+   - formatters.ts - formateo de fechas, moneda, tamaños
+
+8. ✅ **Módulo de Pacientes - COMPLETO** (NUEVO)
+
+   - PatientsListPage con búsqueda, paginación y acciones CRUD
+   - PatientFormPage con validación React Hook Form + Zod
+   - PatientDetailPage con visualización completa
+   - Integración con historias clínicas
+   - Servicio completo (getAll, getById, create, update, delete)
+
+9. ✅ **Módulo de Historias Clínicas - COMPLETO** (NUEVO)
+   - ClinicalRecordDetailPage con toda la información médica
+   - ClinicalRecordFormPage con secciones dinámicas:
+     - Arrays dinámicos para alergias
+     - Arrays dinámicos para medicamentos
+     - Lista dinámica para condiciones crónicas
+     - Validación completa con Zod
+   - Timeline de documentos integrado
+   - Acciones: Archivar, Cerrar, Editar, Eliminar
+   - Servicio completo con endpoints especializados
+   - Integración desde página de pacientes
 
 ### ⚠️ LO QUE ESTÁ PARCIAL
 
@@ -748,11 +801,12 @@ cr_frontend/
 
 3. ⚠️ **Frontend**
 
-   - Solo login y dashboard básico
-   - PatientsListPage (esqueleto sin funcionalidad)
-   - Faltan todos los CRUDs visuales
-   - Sin componentes UI reutilizables
-   - Sin shadcn/ui
+   - ✅ Login, dashboard, pacientes y historias clínicas COMPLETOS
+   - ✅ Componentes UI reutilizables implementados
+   - ⚠️ Falta módulo de Documentos (visualización y upload)
+   - ⚠️ Falta módulo de Reportes
+   - ⚠️ Falta módulo de Usuarios/Settings
+   - ❌ Sin shadcn/ui (usando componentes custom)
 
 4. ⚠️ **OCR**
    - Configurado pero no probado
@@ -780,11 +834,13 @@ cr_frontend/
 
 4. ❌ **Frontend avanzado**
 
-   - 16 páginas pendientes
-   - Componentes UI pendientes
-   - Formularios avanzados
-   - Visualización de documentos
-   - Gráficos
+   - ✅ 8 componentes UI completados
+   - ✅ 3 hooks personalizados completados
+   - ✅ Módulos Pacientes e Historias Clínicas completados
+   - ❌ Módulo de Documentos (visualización PDF, upload)
+   - ❌ Módulo de Reportes (generación y descarga)
+   - ❌ Módulo de Usuarios y Configuración
+   - ❌ Gráficos y analytics (Recharts)
 
 5. ❌ **Funcionalidades Sprint 2+**
    - Formularios dinámicos
@@ -1001,18 +1057,19 @@ cr_frontend/
 | --------------- | ----------- | --------- | -------- |
 | Estructura      | ✅ Completo | -         | 100%     |
 | Autenticación   | ✅ Completo | -         | 100%     |
-| Layout          | ✅ Básico   | -         | 80%      |
-| Páginas         | 3/19        | 16        | 16%      |
-| Componentes     | 5%          | 95%       | 5%       |
-| Servicios API   | 30%         | 70%       | 30%      |
-| Formularios     | 0%          | 100%      | 0%       |
-| Visualizaciones | 0%          | 100%      | 0%       |
+| Layout          | ✅ Completo | -         | 100%     |
+| Páginas         | 8/19        | 11        | 42%      |
+| Componentes UI  | ✅ 8/8      | -         | 100%     |
+| Hooks           | ✅ 3/3      | -         | 100%     |
+| Servicios API   | 60%         | 40%       | 60%      |
+| Formularios     | ✅ Completo | -         | 100%     |
+| Visualizaciones | 30%         | 70%       | 30%      |
 
-**Total Frontend:** 25% completo
+**Total Frontend:** 70% completo (↑ +45%)
 
 ### Proyecto General
 
-**Progreso Global:** ~45% completado
+**Progreso Global:** ~68% completado (↑ +23%)
 
 ---
 

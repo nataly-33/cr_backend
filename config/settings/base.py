@@ -75,16 +75,28 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DATABASE_NAME', default='clinidocs_db'),
-        'USER': config('DATABASE_USER', default='clinidocs_user'),
-        'PASSWORD': config('DATABASE_PASSWORD', default=''),
-        'HOST': config('DATABASE_HOST', default='localhost'),
-        'PORT': config('DATABASE_PORT', default='5432'),
+# Support both SQLite (for development) and PostgreSQL (for production)
+DATABASE_ENGINE = config('DATABASE_ENGINE', default='sqlite')
+
+if DATABASE_ENGINE == 'postgresql':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DATABASE_NAME', default='clinidocs_db'),
+            'USER': config('DATABASE_USER', default='clinidocs_user'),
+            'PASSWORD': config('DATABASE_PASSWORD', default=''),
+            'HOST': config('DATABASE_HOST', default='localhost'),
+            'PORT': config('DATABASE_PORT', default='5432'),
+        }
     }
-}
+else:
+    # SQLite for development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / config('DATABASE_NAME', default='db.sqlite3'),
+        }
+    }
 
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
