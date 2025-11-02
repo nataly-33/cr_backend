@@ -6,7 +6,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import HttpResponse
 from django.db import models
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 
 from .models import ClinicalDocument, MedicalImage, DocumentAccessLog
 from .serializers import (
@@ -18,8 +19,47 @@ from .serializers import (
 )
 from .services import DocumentService
 
-
-@extend_schema(tags=['Documents'])
+@extend_schema_view(
+    list=extend_schema(
+        summary="Listar documentos clínicos",
+        description="Obtiene la lista de documentos clínicos del tenant actual",
+        tags=['documents'],
+        parameters=[
+            OpenApiParameter(
+                name='document_type',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filtrar por tipo de documento',
+            ),
+            OpenApiParameter(
+                name='specialty',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filtrar por especialidad',
+            ),
+        ],
+    ),
+    create=extend_schema(
+        summary="Crear documento clínico",
+        description="Crea un nuevo documento clínico",
+        tags=['documents'],
+    ),
+    retrieve=extend_schema(
+        summary="Obtener documento",
+        description="Obtiene los detalles de un documento específico",
+        tags=['documents'],
+    ),
+    update=extend_schema(
+        summary="Actualizar documento",
+        description="Actualiza un documento existente",
+        tags=['documents'],
+    ),
+    destroy=extend_schema(
+        summary="Eliminar documento",
+        description="Elimina un documento (soft delete)",
+        tags=['documents'],
+    ),
+)
 class ClinicalDocumentViewSet(viewsets.ModelViewSet):
     """ViewSet para gestión de documentos clínicos"""
     queryset = ClinicalDocument.objects.all()
@@ -167,7 +207,6 @@ class ClinicalDocumentViewSet(viewsets.ModelViewSet):
         serializer = ClinicalDocumentListSerializer(documents, many=True)
         return Response(serializer.data)
     
-@extend_schema(tags=['Documents'])
 class MedicalImageViewSet(viewsets.ModelViewSet):
     """ViewSet para imágenes médicas"""
     queryset = MedicalImage.objects.all()
@@ -190,7 +229,6 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
             created_by=self.request.user
         )
 
-@extend_schema(tags=['Documents'])
 class DocumentAccessLogViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet para consultar logs de acceso (solo lectura)"""
     queryset = DocumentAccessLog.objects.all()

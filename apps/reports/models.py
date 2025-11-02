@@ -4,17 +4,24 @@ from apps.core.models import TenantAwareModel
 
 
 class ReportTemplate(TenantAwareModel):
-    """Plantilla de reporte"""
+    """Plantillas de reportes predefinidos"""
     
+    REPORT_TYPES = [
+        ('documents_by_type', 'Documentos por Tipo'),
+        ('patients_summary', 'Resumen de Pacientes'),
+        ('activity_log', 'Registro de Actividad'),
+        ('usage_statistics', 'Estadísticas de Uso'),
+    ]
+
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    report_type = models.CharField(max_length=100)  # documents, patients, analytics
+    report_type = models.CharField(max_length=100, choices=REPORT_TYPES)  
     category = models.CharField(max_length=100, blank=True)
     
     query_template = models.TextField(blank=True)
     parameters = models.JSONField(default=dict)
-    
-    output_formats = models.JSONField(default=list)  # ['pdf', 'excel', 'csv']
+
+    output_formats = models.JSONField(default=list) #pdf, excel, csv
     chart_config = models.JSONField(default=dict, blank=True)
     
     is_public = models.BooleanField(default=False)
@@ -38,6 +45,13 @@ class ReportTemplate(TenantAwareModel):
 class ReportExecution(TenantAwareModel):
     """Historial de reportes generados"""
     
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('processing', 'Procesando'),
+        ('completed', 'Completado'),
+        ('failed', 'Fallido'),
+    ]
+
     template = models.ForeignKey(
         ReportTemplate,
         on_delete=models.SET_NULL,
@@ -62,13 +76,8 @@ class ReportExecution(TenantAwareModel):
     
     status = models.CharField(
         max_length=50,
-        default='completed',
-        choices=[
-            ('pending', 'Pendiente'),
-            ('processing', 'Procesando'),
-            ('completed', 'Completado'),
-            ('failed', 'Fallido'),
-        ]
+        choices=STATUS_CHOICES,
+        default='pending'
     )
     error_message = models.TextField(blank=True)
     

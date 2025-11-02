@@ -3,6 +3,9 @@ from .models import ReportTemplate, ReportExecution
 
 
 class ReportTemplateSerializer(serializers.ModelSerializer):
+    output_formats = serializers.JSONField(required=False)
+    allowed_roles = serializers.JSONField(required=False)
+
     class Meta:
         model = ReportTemplate
         fields = '__all__'

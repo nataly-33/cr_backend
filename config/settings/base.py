@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from datetime import timedelta
 from decouple import config, Csv
@@ -34,6 +35,8 @@ INSTALLED_APPS = [
     'apps.clinical_records',
     'apps.documents',
     'apps.audit',
+    'apps.reports',
+    'apps.backup',
 ]
 
 MIDDLEWARE = [
@@ -73,11 +76,14 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL'),
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DB_NAME', 'clinidocs_db'),
+        'USER': os.environ.get('DB_USER', 'clinidocs_user'),
+        'PASSWORD': os.environ.get('DB_PASSWORD'),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
+    }
 }
 
 # Custom User Model
@@ -163,10 +169,36 @@ CORS_ALLOW_CREDENTIALS = True
 # Spectacular (Swagger) Settings
 SPECTACULAR_SETTINGS = {
     'TITLE': 'CliniDocs API',
-    'DESCRIPTION': 'Sistema de Gestión Documental de Historias Clínicas',
+    'DESCRIPTION': 'Sistema de Gestión Documental de Historias Clínicas - API Documentation',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': '/api',
+    
+    # Autenticación
+    'SECURITY': [
+        {
+            'Bearer': {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            }
+        }
+    ],
+    
+    # Tags
+    'TAGS': [
+        {'name': 'auth', 'description': 'Autenticación y autorización'},
+        {'name': 'users', 'description': 'Gestión de usuarios'},
+        {'name': 'tenants', 'description': 'Gestión de tenants (hospitales/clínicas)'},
+        {'name': 'patients', 'description': 'Gestión de pacientes'},
+        {'name': 'clinical-records', 'description': 'Historias clínicas'},
+        {'name': 'documents', 'description': 'Documentos clínicos'},
+        {'name': 'reports', 'description': 'Sistema de reportes'},
+        {'name': 'audit', 'description': 'Logs de auditoría'},
+        {'name': 'backup', 'description': 'Sistema de backup'},
+        {'name': 'ai', 'description': 'Servicios de IA (OCR, ML)'},
+    ],
 }
 
 # Celery Configuration
@@ -177,21 +209,10 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
-# AWS Configuration
-AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+# Configuración de reportes
+REPORTS_DIR = BASE_DIR / 'media' / 'reports'
+REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# S3 Configuration
-AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
-AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com'
-AWS_S3_OBJECT_PARAMETERS = {
-    'CacheControl': 'max-age=86400',
-}
-AWS_S3_FILE_OVERWRITE = False
-AWS_DEFAULT_ACL = 'private'
-AWS_S3_VERIFY = True
-
-# Textract Configuration
-AWS_TEXTRACT_REGION = config('AWS_TEXTRACT_REGION', default='us-east-1')
-
+# Configuración de backups
+BACKUPS_DIR = BASE_DIR / 'media' / 'backups'
+BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
