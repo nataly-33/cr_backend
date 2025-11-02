@@ -26,6 +26,41 @@ Faker.seed(42)
 np.random.seed(42)
 
 
+def create_superuser():
+    """
+    Crea el superusuario ASU (Admin Super Usuario) que puede ver todos los tenants.
+    Este usuario NO pertenece a ningún tenant específico.
+    """
+    print("[+] Creando Super Usuario (ASU)...")
+    
+    superuser_email = 'superadmin@clinidocs.com'
+    
+    # Verificar si ya existe
+    if User.objects.filter(email=superuser_email).exists():
+        print(f"  ⏭️  Superusuario ya existe: {superuser_email}")
+        return User.objects.get(email=superuser_email)
+    
+    # Crear superusuario sin tenant
+    superuser = User.objects.create_superuser(
+        email=superuser_email,
+        password='SuperAdmin123!',
+        first_name='Super',
+        last_name='Administrador',
+    )
+    
+    # No asignar tenant ni rol (es superusuario global)
+    superuser.is_staff = True
+    superuser.is_superuser = True
+    superuser.email_verified = True
+    superuser.save()
+    
+    print(f"  ✅ Superusuario creado: {superuser.email}")
+    print(f"     Password: SuperAdmin123!")
+    print(f"     Este usuario puede acceder a TODOS los tenants")
+    
+    return superuser
+
+
 def create_tenants():
     """Crea 2 tenants de prueba"""
     print("[+] Creando tenants...")
@@ -78,7 +113,15 @@ def create_tenants():
 
 
 def create_permissions_and_roles(tenant):
-    """Crea permisos y roles para un tenant"""
+    """
+    Crea permisos y roles para un tenant según RBAC definido.
+    
+    Roles del sistema:
+    - Administrador TI: Gestión completa del tenant (usuarios, roles, pacientes, historias, etc.)
+    - Doctor: CRUD completo de historias clínicas y documentos
+    - Paciente: Solo lectura de SU propia historia clínica
+    - Enfermera: Lectura y actualización (sin crear/eliminar)
+    """
     print(f"  🔐 Creando permisos y roles para {tenant.name}...")
     
     set_current_tenant(tenant)
@@ -88,8 +131,9 @@ def create_permissions_and_roles(tenant):
     actions = ['create', 'read', 'update', 'delete', 'export', 'sign']
     
     permissions = []
+    permissions_dict = {}
     
-    # Crear permisos
+    # Crear TODOS los permisos posibles
     for resource in resources:
         for action in actions:
             # No todos los recursos tienen todas las acciones
@@ -98,9 +142,10 @@ def create_permissions_and_roles(tenant):
             if action == 'sign' and resource != 'document':
                 continue
             
+            perm_code = f'{resource}.{action}'
             perm, created = Permission.objects.get_or_create(
                 tenant=tenant,
-                code=f'{resource}.{action}',
+                code=perm_code,
                 defaults={
                     'name': f'{action.title()} {resource}',
                     'description': f'Permite {action} en {resource}',
@@ -109,36 +154,90 @@ def create_permissions_and_roles(tenant):
                 }
             )
             permissions.append(perm)
+            permissions_dict[perm_code] = perm
     
     print(f"    ✅ {len(permissions)} permisos creados")
     
-    # Crear roles
+    # ========================================================================
+    # DEFINIR ROLES SEGÚN ESPECIFICACIÓN
+    # ========================================================================
+    
     roles_config = {
-        'Administrador': permissions,  # Todos los permisos
-        'Doctor': [p for p in permissions if p.resource in ['patient', 'clinical_record', 'document'] and p.action in ['create', 'read', 'update', 'sign']],
-        'Enfermera': [p for p in permissions if p.resource in ['patient', 'clinical_record', 'document'] and p.action in ['read', 'update']],
-        'Administrativo': [p for p in permissions if p.resource in ['patient', 'report'] and p.action in ['create', 'read', 'update']],
+        'Administrador TI': {
+            'description': 'Administrador del tenant con acceso completo a todo',
+            'is_system_role': True,
+            'permissions': permissions  # TODOS los permisos
+        },
+        'Doctor': {
+            'description': 'Doctor con acceso CRUD completo a historias clínicas y documentos',
+            'is_system_role': False,
+            'permissions': [
+                # Pacientes: lectura y actualización
+                permissions_dict.get('patient.read'),
+                permissions_dict.get('patient.update'),
+                # Historias clínicas: CRUD completo
+                permissions_dict.get('clinical_record.create'),
+                permissions_dict.get('clinical_record.read'),
+                permissions_dict.get('clinical_record.update'),
+                permissions_dict.get('clinical_record.delete'),
+                permissions_dict.get('clinical_record.export'),
+                # Documentos: CRUD completo + firma
+                permissions_dict.get('document.create'),
+                permissions_dict.get('document.read'),
+                permissions_dict.get('document.update'),
+                permissions_dict.get('document.delete'),
+                permissions_dict.get('document.sign'),
+                permissions_dict.get('document.export'),
+                # Reportes: lectura y creación
+                permissions_dict.get('report.read'),
+                permissions_dict.get('report.create'),
+                permissions_dict.get('report.export'),
+            ]
+        },
+        'Paciente': {
+            'description': 'Paciente con acceso solo a SU propia historia clínica (solo lectura)',
+            'is_system_role': False,
+            'permissions': [
+                # Solo lectura de su historia clínica
+                # La validación de "solo la suya" se hace en el ViewSet con has_object_permission
+                permissions_dict.get('clinical_record.read'),
+                permissions_dict.get('document.read'),
+            ]
+        }
     }
     
     roles = {}
-    for role_name, role_perms in roles_config.items():
+    for role_name, role_config in roles_config.items():
         role, created = Role.objects.get_or_create(
             tenant=tenant,
             name=role_name,
             defaults={
-                'description': f'Rol de {role_name}',
-                'is_system_role': (role_name == 'Administrador')
+                'description': role_config['description'],
+                'is_system_role': role_config['is_system_role']
             }
         )
-        role.permissions.set(role_perms)
+        
+        # Filtrar permisos None
+        role_permissions = [p for p in role_config['permissions'] if p is not None]
+        role.permissions.set(role_permissions)
         roles[role_name] = role
-        print(f"    ✅ Rol creado: {role_name} ({len(role_perms)} permisos)")
+        
+        print(f"    ✅ Rol creado: {role_name} ({len(role_permissions)} permisos)")
     
     return roles
 
 
 def create_users(tenant, roles):
-    """Crea usuarios de prueba para un tenant"""
+    """
+    Crea usuarios de prueba para un tenant.
+    
+    Usuarios por tenant:
+    - 1 Administrador TI (gestión completa del tenant)
+    - 2 Doctores (CRUD de historias clínicas)
+    - 1 Enfermera (lectura y actualización)
+    - 1 Administrativo (gestión de pacientes)
+    - 2 Pacientes (solo ven su historia clínica)
+    """
     print(f"  👥 Creando usuarios para {tenant.name}...")
     
     set_current_tenant(tenant)
@@ -148,9 +247,10 @@ def create_users(tenant, roles):
             'email': f'admin@{tenant.subdomain}.com',
             'first_name': 'Juan',
             'last_name': 'Pérez',
-            'role': roles['Administrador'],
+            'role': roles['Administrador TI'],
             'professional_id': 'ADM001',
             'is_staff': True,
+            'description': 'Administrador TI del tenant'
         },
         {
             'email': f'doctor1@{tenant.subdomain}.com',
@@ -159,6 +259,7 @@ def create_users(tenant, roles):
             'role': roles['Doctor'],
             'professional_id': 'DOC001',
             'specialty': 'Cardiología',
+            'description': 'Doctora - Cardiología'
         },
         {
             'email': f'doctor2@{tenant.subdomain}.com',
@@ -167,20 +268,21 @@ def create_users(tenant, roles):
             'role': roles['Doctor'],
             'professional_id': 'DOC002',
             'specialty': 'Pediatría',
+            'description': 'Doctor - Pediatría'
         },
         {
-            'email': f'enfermera1@{tenant.subdomain}.com',
-            'first_name': 'Ana',
-            'last_name': 'Martínez',
-            'role': roles['Enfermera'],
-            'professional_id': 'ENF001',
+            'email': f'paciente1@{tenant.subdomain}.com',
+            'first_name': 'Pedro',
+            'last_name': 'García',
+            'role': roles['Paciente'],
+            'description': 'Paciente de prueba 1'
         },
         {
-            'email': f'admin-staff@{tenant.subdomain}.com',
-            'first_name': 'Luis',
-            'last_name': 'Sánchez',
-            'role': roles['Administrativo'],
-            'professional_id': 'ADM002',
+            'email': f'paciente2@{tenant.subdomain}.com',
+            'first_name': 'Laura',
+            'last_name': 'Fernández',
+            'role': roles['Paciente'],
+            'description': 'Paciente de prueba 2'
         },
     ]
     
@@ -204,7 +306,7 @@ def create_users(tenant, roles):
         if created:
             user.set_password('Password123!')
             user.save()
-            print(f"    ✅ Usuario: {user.email} | Rol: {user.role.name}")
+            print(f"    ✅ {data['description']}: {user.email} | Rol: {user.role.name}")
         
         users.append(user)
     
@@ -335,6 +437,9 @@ def main():
     print("🌱 INICIANDO SEEDER DE DATOS DE PRUEBA")
     print("="*60 + "\n")
     
+    # 0. Crear superusuario ASU (Admin Super Usuario)
+    superuser = create_superuser()
+    
     # 1. Crear tenants
     tenants = create_tenants()
     
@@ -368,12 +473,26 @@ def main():
     print(f"  • Usuarios totales: {User.objects.count()}")
     print(f"  • Pacientes totales: {Patient.objects.count()}")
     print(f"  • Historias clínicas: {ClinicalRecord.objects.count()}")
+    
     print("\n🔑 Credenciales de acceso:")
+    
+    print("\n  🌟 SUPERUSUARIO (ASU - Acceso a todos los tenants):")
+    print(f"    • Email: superadmin@clinidocs.com")
+    print(f"    • Password: SuperAdmin123!")
+    print(f"    • Puede ver información de TODOS los tenants")
+    
     for tenant in tenants:
         print(f"\n  {tenant.name}:")
         print(f"    • URL: http://{tenant.subdomain}.localhost:8000")
-        print(f"    • Email: admin@{tenant.subdomain}.com")
-        print(f"    • Password: Password123!")
+        print(f"    • Administrador TI: admin@{tenant.subdomain}.com")
+        print(f"    • Doctor: doctor1@{tenant.subdomain}.com")
+        print(f"    • Paciente: paciente1@{tenant.subdomain}.com")
+        print(f"    • Password (todos): Password123!")
+    
+    print("\n📝 Sistema de Permisos RBAC:")
+    print("  • Administrador TI: Gestión completa del tenant")
+    print("  • Doctor: CRUD completo de historias clínicas")
+    print("  • Paciente: Solo lectura de SU historia clínica")
     print()
 
 

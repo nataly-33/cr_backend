@@ -8,13 +8,28 @@ from drf_spectacular.utils import extend_schema
 from .models import Patient
 from .serializers import PatientSerializer, PatientListSerializer
 from .filters import PatientFilter
+from apps.core.permissions import (
+    IsTenantMember,
+    HasPermission,
+    PermissionByActionMixin,
+    PermissionCodes
+)
 
 
 @extend_schema(tags=['Patients'])
-class PatientViewSet(viewsets.ModelViewSet):
-    """ViewSet para gestión de pacientes"""
+class PatientViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de pacientes.
+    
+    Permisos requeridos:
+    - list/retrieve: patient.read
+    - create: patient.create
+    - update: patient.update
+    - delete: patient.delete
+    """
     queryset = Patient.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsTenantMember, HasPermission]
+    resource_name = 'patient'  # Para HasPermission
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = PatientFilter
     search_fields = ['first_name', 'last_name', 'identity_document', 'email']

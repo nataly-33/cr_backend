@@ -17,6 +17,13 @@ from .serializers import (
     UserPreferencesSerializer
 )
 from apps.core.models import Tenant, set_current_tenant
+from apps.core.permissions import (
+    IsTenantMember,
+    CanManageUsers,
+    CanManageRoles,
+    PermissionByActionMixin,
+    IsSuperAdmin
+)
 
 
 @extend_schema(tags=['Accounts'])
@@ -107,11 +114,22 @@ class RegisterView(viewsets.GenericViewSet):
 
 
 @extend_schema(tags=['Accounts'])
-class UserViewSet(viewsets.ModelViewSet):
-    """ViewSet para gestión de usuarios"""
+class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de usuarios.
+    
+    Permisos requeridos:
+    - list/retrieve: user.read
+    - create: user.create
+    - update: user.update
+    - delete: user.delete
+    
+    Solo Administradores TI pueden gestionar usuarios.
+    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsTenantMember, CanManageUsers]
+    resource_name = 'user'
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -181,11 +199,22 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 @extend_schema(tags=['Accounts'])
-class RoleViewSet(viewsets.ModelViewSet):
-    """ViewSet para gestión de roles"""
+class RoleViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de roles.
+    
+    Permisos requeridos:
+    - list/retrieve: role.read
+    - create: role.create
+    - update: role.update
+    - delete: role.delete
+    
+    Solo Administradores TI pueden gestionar roles.
+    """
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsTenantMember, CanManageRoles]
+    resource_name = 'role'
 
     def get_queryset(self):
         return Role.objects.filter(tenant=self.request.tenant)
@@ -203,10 +232,17 @@ class RoleViewSet(viewsets.ModelViewSet):
 
 @extend_schema(tags=['Accounts'])
 class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet para listar permisos (solo lectura)"""
+    """
+    ViewSet para listar permisos (solo lectura).
+    
+    Permisos requeridos:
+    - list/retrieve: role.read
+    
+    Permite a los Administradores TI ver todos los permisos disponibles.
+    """
     queryset = Permission.objects.all()
     serializer_class = PermissionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsTenantMember, CanManageRoles]
 
     def get_queryset(self):
         return Permission.objects.filter(tenant=self.request.tenant)
