@@ -33,3 +33,7 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Others
+runserver.bat
+runserver.ps1

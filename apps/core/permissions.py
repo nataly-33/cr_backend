@@ -302,6 +302,11 @@ class CanManageUsers(BasePermission):
         
         action = getattr(view, 'action', None)
         
+        # Acciones permitidas para cualquier usuario autenticado
+        if action in ['me', 'get_preferences', 'update_preferences']:
+            return True
+        
+        # Acciones que requieren permisos específicos
         if action in ['list', 'retrieve']:
             return request.user.has_permission(PermissionCodes.USER_READ)
         elif action == 'create':
@@ -324,6 +329,11 @@ class CanManageRoles(BasePermission):
         
         action = getattr(view, 'action', None)
         
+        # Superadmins pueden hacer cualquier cosa
+        if request.user.is_superuser:
+            return True
+        
+        # Para usuarios normales, verificar que solo gestionen roles de su tenant
         if action in ['list', 'retrieve']:
             return request.user.has_permission(PermissionCodes.ROLE_READ)
         elif action == 'create':

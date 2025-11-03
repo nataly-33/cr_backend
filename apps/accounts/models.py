@@ -203,9 +203,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.role.permissions.filter(code=permission_code).exists()
 
 
-class Permission(TenantAwareModel):
+class Permission(models.Model):
     """
-    Permisos granulares por tenant
+    Permisos granulares - Globales si tenant es NULL, o específicos por tenant
     """
     RESOURCE_CHOICES = [
         ('patient', 'Pacientes'),
@@ -226,6 +226,15 @@ class Permission(TenantAwareModel):
         ('sign', 'Firmar'),
     ]
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        'core.Tenant',
+        on_delete=models.CASCADE,
+        related_name='permissions',
+        null=True,
+        blank=True,
+        verbose_name=_('Tenant (NULL para permisos globales)')
+    )
     name = models.CharField(
         max_length=100,
         verbose_name=_('Nombre')
@@ -249,25 +258,38 @@ class Permission(TenantAwareModel):
         choices=ACTION_CHOICES,
         verbose_name=_('Acción')
     )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('Creado'))
+    updated_at = models.DateTimeField(auto_now=True, verbose_name=_('Actualizado'))
 
     class Meta:
         db_table = 'permissions'
         verbose_name = _('Permiso')
         verbose_name_plural = _('Permisos')
         unique_together = [['tenant', 'code']]
+        ordering = ['-created_at']
         indexes = [
             models.Index(fields=['tenant', 'resource']),
             models.Index(fields=['code']),
         ]
 
     def __str__(self):
-        return f"{self.name} ({self.code})"
+        scope = "Global" if self.tenant is None else f"Tenant: {self.tenant.name}"
+        return f"{self.name} ({self.code}) - {scope}"
 
 
-class Role(TenantAwareModel):
+class Role(models.Model):
     """
-    Roles con permisos asignables
+    Roles con permisos asignables - Globales si tenant es NULL, específicos si tiene tenant
     """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        'core.Tenant',
+        on_delete=models.CASCADE,
+        related_name='roles',
+        null=True,
+        blank=True,
+        verbose_name=_('Tenant (NULL para roles globales)')
+    )
     name = models.CharField(
         max_length=100,
         verbose_name=_('Nombre')
@@ -286,15 +308,23 @@ class Role(TenantAwareModel):
         verbose_name=_('Rol del sistema'),
         help_text=_('Los roles del sistema no pueden ser eliminados')
     )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('Creado'))
+    updated_at = models.DateTimeField(auto_now=True, verbose_name=_('Actualizado'))
 
     class Meta:
         db_table = 'roles'
         verbose_name = _('Rol')
         verbose_name_plural = _('Roles')
         unique_together = [['tenant', 'name']]
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant']),
+            models.Index(fields=['name']),
+        ]
 
     def __str__(self):
-        return self.name
+        scope = "Global" if self.tenant is None else f"Tenant: {self.tenant.name}"
+        return f"{self.name} - {scope}"
 
     def has_permission(self, permission_code):
         """Verifica si el rol tiene un permiso específico"""
