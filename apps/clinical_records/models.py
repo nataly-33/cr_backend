@@ -114,3 +114,97 @@ class ClinicalRecord(TenantAwareModel):
         ).count()
 
         return f"HC-{year}-{str(count + 1).zfill(6)}"
+
+
+class ClinicalForm(TenantAwareModel):
+    """
+    Formularios clínicos asociados a una historia clínica.
+    Incluye: Triaje, Notas de evolución, Recetas, Órdenes de laboratorio, etc.
+    """
+    FORM_TYPE_CHOICES = [
+        ('triage', 'Triaje'),
+        ('consultation', 'Consulta Médica'),
+        ('evolution', 'Nota de Evolución'),
+        ('prescription', 'Receta Médica'),
+        ('lab_order', 'Orden de Laboratorio'),
+        ('imaging_order', 'Orden de Imagenología'),
+        ('procedure', 'Procedimiento'),
+        ('discharge', 'Alta Médica'),
+        ('referral', 'Referencia'),
+        ('other', 'Otro'),
+    ]
+
+    clinical_record = models.ForeignKey(
+        ClinicalRecord,
+        on_delete=models.CASCADE,
+        related_name='forms',
+        verbose_name=_('Historia Clínica')
+    )
+
+    form_type = models.CharField(
+        max_length=100,
+        choices=FORM_TYPE_CHOICES,
+        verbose_name=_('Tipo de formulario')
+    )
+
+    form_template_id = models.UUIDField(
+        null=True,
+        blank=True,
+        verbose_name=_('ID de plantilla'),
+        help_text=_('Si se usó una plantilla predefinida')
+    )
+
+    form_data = models.JSONField(
+        default=dict,
+        verbose_name=_('Datos del formulario'),
+        help_text=_('Estructura JSON flexible según el tipo de formulario')
+    )
+
+    filled_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.PROTECT,
+        related_name='filled_forms',
+        verbose_name=_('Llenado por')
+    )
+
+    doctor_name = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name=_('Nombre del doctor'),
+        help_text=_('Opcional, se puede tomar del usuario')
+    )
+
+    doctor_specialty = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name=_('Especialidad del doctor')
+    )
+
+    form_date = models.DateTimeField(
+        verbose_name=_('Fecha del formulario'),
+        help_text=_('Fecha en que se llenó el formulario')
+    )
+
+    objects = TenantManager()
+
+    class Meta:
+        db_table = 'clinical_form'
+        verbose_name = _('Formulario Clínico')
+        verbose_name_plural = _('Formularios Clínicos')
+        ordering = ['-form_date']
+        indexes = [
+            models.Index(fields=['tenant', 'clinical_record']),
+            models.Index(fields=['form_type']),
+            models.Index(fields=['-form_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_form_type_display()} - {self.clinical_record.record_number} - {self.form_date.strftime('%Y-%m-%d')}"
+
+    def save(self, *args, **kwargs):
+        """Auto-llenar doctor_name si está vacío"""
+        if not self.doctor_name and self.filled_by:
+            self.doctor_name = f"{self.filled_by.first_name} {self.filled_by.last_name}"
+            if hasattr(self.filled_by, 'specialty') and self.filled_by.specialty:
+                self.doctor_specialty = self.filled_by.specialty
+        super().save(*args, **kwargs)

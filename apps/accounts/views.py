@@ -118,18 +118,28 @@ class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión de usuarios.
     
-    Permisos requeridos:
-    - list/retrieve: user.read
-    - create: user.create
-    - update: user.update
-    - delete: user.delete
-    
-    Solo Administradores TI pueden gestionar usuarios.
+    Permisos:
+    - list/retrieve: Cualquier usuario autenticado (IsAuthenticated)
+    - create/update/delete: Solo Administradores TI (CanManageUsers)
     """
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsTenantMember, CanManageUsers]
+    permission_classes = [IsTenantMember]
     resource_name = 'user'
+    
+    def get_permissions(self):
+        """Permisos dinámicos según la acción"""
+        if self.action in ['list', 'retrieve', 'me']:
+            # Cualquier usuario autenticado puede listar/ver usuarios
+            # Super usuarios no necesitan IsTenantMember
+            if hasattr(self.request, 'user') and self.request.user.is_superuser:
+                return [permissions.IsAuthenticated()]
+            return [IsTenantMember(), permissions.IsAuthenticated()]
+        else:
+            # Solo admins pueden crear/modificar/eliminar
+            if hasattr(self.request, 'user') and self.request.user.is_superuser:
+                return [permissions.IsAuthenticated()]
+            return [IsTenantMember(), CanManageUsers()]
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -137,10 +147,16 @@ class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         return UserSerializer
 
     def get_queryset(self):
-        """Filtrar usuarios del tenant actual"""
+        """Filtrar usuarios según el tipo de usuario"""
         if self.request.user.is_superuser:
-            return User.objects.all()
-        return User.objects.filter(tenant=self.request.tenant)
+            # Super Admin solo ve usuarios con rol Administrativo de todos los tenants
+            return User.objects.filter(
+                role__name='Administrativo',
+                tenant__isnull=False
+            ).select_related('role', 'tenant')
+        
+        # Usuarios normales ven todos los usuarios de su tenant
+        return User.objects.filter(tenant=self.request.tenant).select_related('role', 'tenant')
 
     @action(detail=False, methods=['get'])
     def me(self, request):
@@ -183,10 +199,19 @@ class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
             'is_active': user.is_active
         })
 
-    @action(detail=False, methods=['put'])
-    def update_preferences(self, request):
-        """Actualizar preferencias del usuario"""
-        preferences = request.user.preferences
+    @action(detail=False, methods=['get', 'put'], permission_classes=[permissions.IsAuthenticated])
+    def preferences(self, request):
+        """Obtener o actualizar preferencias del usuario"""
+        # Obtener o crear preferencias si no existen
+        preferences, created = UserPreferences.objects.get_or_create(
+            user=request.user
+        )
+
+        if request.method == 'GET':
+            serializer = UserPreferencesSerializer(preferences)
+            return Response(serializer.data)
+
+        # PUT - Actualizar preferencias
         serializer = UserPreferencesSerializer(
             preferences,
             data=request.data,
@@ -203,18 +228,23 @@ class RoleViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión de roles.
     
-    Permisos requeridos:
-    - list/retrieve: role.read
-    - create: role.create
-    - update: role.update
-    - delete: role.delete
-    
-    Solo Administradores TI pueden gestionar roles.
+    Permisos:
+    - list/retrieve: Cualquier usuario autenticado (IsAuthenticated)
+    - create/update/delete: Solo Administradores TI (CanManageRoles)
     """
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-    permission_classes = [IsTenantMember, CanManageRoles]
+    permission_classes = [IsTenantMember]
     resource_name = 'role'
+    
+    def get_permissions(self):
+        """Permisos dinámicos según la acción"""
+        if self.action in ['list', 'retrieve']:
+            # Cualquier usuario autenticado puede listar/ver roles
+            return [IsTenantMember(), permissions.IsAuthenticated()]
+        else:
+            # Solo admins pueden crear/modificar/eliminar
+            return [IsTenantMember(), CanManageRoles()]
 
     def get_queryset(self):
         return Role.objects.filter(tenant=self.request.tenant)
@@ -235,14 +265,11 @@ class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet para listar permisos (solo lectura).
     
-    Permisos requeridos:
-    - list/retrieve: role.read
-    
-    Permite a los Administradores TI ver todos los permisos disponibles.
+    Permisos: Cualquier usuario autenticado puede ver permisos disponibles.
     """
     queryset = Permission.objects.all()
     serializer_class = PermissionSerializer
-    permission_classes = [IsTenantMember, CanManageRoles]
+    permission_classes = [IsTenantMember, permissions.IsAuthenticated]
 
     def get_queryset(self):
         return Permission.objects.filter(tenant=self.request.tenant)
