@@ -2,8 +2,8 @@
 
 ## RESUMEN COMPLETO ACTUALIZADO - GUÍA MAESTRA DEL PROYECTO
 
-**Versión:** 6.1 - Sprint 1 CASI COMPLETO ✨
-**Última actualización:** 3 de Noviembre de 2025 - 18:15
+**Versión:** 6.2 - Sprint 1 CASI COMPLETO ✨
+**Última actualización:** 3 de Noviembre de 2025 - 20:45
 **Estado actual:** Sprint 1 - **99% completado** (Día 4 de 14)
 **Duración total:** 14 días (2 semanas)
 **Equipo:** 3 personas
@@ -12,7 +12,15 @@
 **Progreso General:** **99% completo** ✨
 - Backend: **99%** (49/49 APIs implementadas + infraestructura completa)
 - Frontend: **100%** (19/19 páginas implementadas)
-- **12 Módulos completos al 100%**: Pacientes, Historias Clínicas, Documentos, Usuarios, Reportes, Settings (con preferencias), Multi-tenancy, RBAC, Auditoría, **Celery, Backup Automatizado, Personalización** ✨
+- **12 Módulos completos al 100%**: Pacientes, Historias Clínicas, Documentos, **Usuarios (mejorado)**, Reportes, Settings (con preferencias), Multi-tenancy, RBAC, Auditoría, **Celery, Backup Automatizado, Personalización** ✨
+
+**Últimas mejoras (3 Nov 2025 - 20:45):**
+- ✅ Módulo de Usuarios integrado al menú de navegación
+- ✅ Permisos mejorados para Super Admin (acceso sin tenant)
+- ✅ Filtrado inteligente: Super Admin ve solo Administrativos, usuarios normales ven su tenant
+- ✅ URLs corregidas en frontend (/auth/users/)
+- ✅ Servicios de roles y permisos actualizados para respuestas paginadas
+- ✅ 15 endpoints de usuarios completamente funcionales
 
 ---
 
@@ -996,7 +1004,7 @@ cr_frontend/
      - ✅ Exportaciones en documents/pages/index.ts
      - ✅ Integración con módulo de historias clínicas
 
-11. ✅ **Módulo de Usuarios - COMPLETO** (NUEVO - FASE 5)
+11. ✅ **Módulo de Usuarios - COMPLETO** (NUEVO - FASE 5 - Actualizado)
    - **Backend:**
      - ✅ UserViewSet con CRUD completo
      - ✅ RoleViewSet con gestión de roles y permisos
@@ -1006,6 +1014,16 @@ cr_frontend/
      - ✅ Endpoint /users/{id}/change-password/ para cambio de contraseña
      - ✅ Endpoint /users/me/preferences/ para preferencias de usuario
      - ✅ Sistema de preferencias (tema, idioma, notificaciones)
+     - ✅ **Permisos mejorados:** (NUEVO - 3 Nov 2025)
+       - UserViewSet: Lectura para todos autenticados, escritura solo admins
+       - RoleViewSet: Lectura para todos autenticados, escritura solo admins
+       - PermissionViewSet: Lectura pública para usuarios autenticados
+       - Super Admin accede sin necesidad de tenant
+       - Permisos dinámicos según acción (get_permissions)
+     - ✅ **Filtrado por roles:** (NUEVO - 3 Nov 2025)
+       - Super Admin: Solo ve usuarios con rol "Administrativo" de todos los tenants
+       - Usuarios normales: Ven todos los usuarios de su tenant
+       - IsTenantMember verifica superusuarios primero (sin tenant requerido)
    - **Frontend:**
      - ✅ UsersListPage con:
        - Tabla con información completa (nombre, email, rol, estado, fecha)
@@ -1016,9 +1034,13 @@ cr_frontend/
      - ✅ UserFormPage con:
        - Formulario crear/editar con validación Zod
        - Campos: nombres, apellidos, email, teléfono, rol, contraseña
-       - Selector de roles dinámico
+       - Selector de roles dinámico (carga desde API)
        - Validación de contraseñas coincidentes
        - Modo editar (contraseña opcional)
+     - ✅ **Integración con navegación:** (NUEVO - 3 Nov 2025)
+       - Enlace "Usuarios" agregado al Sidebar con icono UserCog
+       - Traducciones español/inglés
+       - Navegación funcional desde menú principal
    - **Servicio users.service.ts:**
      - ✅ getAll con paginación, búsqueda, filtros (role, is_active)
      - ✅ getById
@@ -1029,10 +1051,11 @@ cr_frontend/
      - ✅ toggleActive
      - ✅ changePassword
      - ✅ updatePreferences
-     - ✅ getRoles (todos los roles)
+     - ✅ getRoles (todos los roles) - **Corregido para respuestas paginadas**
      - ✅ getRoleById
      - ✅ createRole / updateRole / deleteRole
-     - ✅ getPermissions (todos los permisos)
+     - ✅ getPermissions (todos los permisos) - **Corregido para respuestas paginadas**
+     - ✅ **URLs corregidas:** Todas las URLs actualizadas de /users/ a /auth/users/ (15 endpoints)
    - **Tipos TypeScript:**
      - ✅ User interface completa (15 campos)
      - ✅ UserPreferences (tema, idioma, notificaciones)
@@ -1045,6 +1068,10 @@ cr_frontend/
      - ✅ Rutas: /users, /users/new, /users/:id/edit
      - ✅ Componente Select creado para formularios
      - ✅ Exportado en shared/components/ui
+   - **Pendiente:**
+     - ⚠️ Crear usuario (formulario funciona, falta testear)
+     - ⚠️ Cambiar contraseña (endpoint existe, falta UI)
+     - ⚠️ Eliminar usuarios (botón existe, falta testear)
 
 12. ✅ **Módulo de Reportes - COMPLETO** (NUEVO - FASE 5)
    - **Backend:**
