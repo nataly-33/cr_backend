@@ -39,8 +39,9 @@ class ReportExecutionViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # Filtrar por usuario si no es admin
-        if not self.request.user.is_tenant_owner:
+        # Filtrar por usuario si no es admin o superusuario
+        # Los admins (is_staff) y superusuarios pueden ver todos los reportes
+        if not (self.request.user.is_staff or self.request.user.is_superuser):
             queryset = queryset.filter(executed_by=self.request.user)
         
         return queryset.select_related('template', 'executed_by')

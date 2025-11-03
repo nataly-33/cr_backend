@@ -36,10 +36,11 @@ class ClinicalRecordCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClinicalRecord
         fields = [
-            'patient', 'blood_type', 'allergies',
+            'id', 'patient', 'blood_type', 'allergies',
             'chronic_conditions', 'medications',
-            'family_history', 'social_history'
+            'family_history', 'social_history', 'record_number'
         ]
+        read_only_fields = ['id', 'record_number']
 
     def validate_patient(self, value):
         """Validar que el paciente no tenga ya una historia clínica activa"""

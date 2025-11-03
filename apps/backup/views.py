@@ -16,8 +16,8 @@ class BackupViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # Solo admin puede ver backups del sistema
-        if not self.request.user.is_tenant_owner:
+        # Solo admin o superusuario puede ver backups del sistema
+        if not (self.request.user.is_staff or self.request.user.is_superuser):
             queryset = queryset.filter(tenant=self.request.user.tenant)
         
         return queryset.order_by('-created_at')
@@ -28,7 +28,7 @@ class BackupViewSet(viewsets.ReadOnlyModelViewSet):
         service = BackupService()
         
         try:
-            tenant = request.user.tenant if not request.user.is_tenant_owner else None
+            tenant = request.user.tenant if not (request.user.is_staff or request.user.is_superuser) else None
             job = service.create_backup(tenant=tenant)
             
             serializer = self.get_serializer(job)
@@ -43,7 +43,7 @@ class BackupViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['post'])
     def restore(self, request, pk=None):
         """Restaurar backup"""
-        if not request.user.is_tenant_owner:
+        if not (request.user.is_staff or request.user.is_superuser):
             return Response(
                 {'error': 'Solo administradores pueden restaurar backups'},
                 status=status.HTTP_403_FORBIDDEN
