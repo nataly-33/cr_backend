@@ -338,12 +338,29 @@ class UserPreferences(models.Model):
     THEME_CHOICES = [
         ('light', 'Claro'),
         ('dark', 'Oscuro'),
-        ('auto', 'Automático'),
+        ('blue', 'Azul'),
+        ('green', 'Verde'),
+        ('purple', 'Púrpura'),
     ]
 
     LANGUAGE_CHOICES = [
         ('es', 'Español'),
         ('en', 'English'),
+    ]
+
+    FONT_SIZE_CHOICES = [
+        ('small', 'Pequeño'),
+        ('medium', 'Mediano'),
+        ('large', 'Grande'),
+        ('extra-large', 'Extra Grande'),
+    ]
+
+    FONT_FAMILY_CHOICES = [
+        ('inter', 'Inter'),
+        ('roboto', 'Roboto'),
+        ('open-sans', 'Open Sans'),
+        ('lato', 'Lato'),
+        ('montserrat', 'Montserrat'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -356,7 +373,7 @@ class UserPreferences(models.Model):
 
     # UI Preferences
     theme = models.CharField(
-        max_length=10,
+        max_length=20,
         choices=THEME_CHOICES,
         default='light',
         verbose_name=_('Tema')
@@ -366,6 +383,18 @@ class UserPreferences(models.Model):
         choices=LANGUAGE_CHOICES,
         default='es',
         verbose_name=_('Idioma')
+    )
+    font_size = models.CharField(
+        max_length=20,
+        choices=FONT_SIZE_CHOICES,
+        default='medium',
+        verbose_name=_('Tamaño de fuente')
+    )
+    font_family = models.CharField(
+        max_length=30,
+        choices=FONT_FAMILY_CHOICES,
+        default='inter',
+        verbose_name=_('Tipografía')
     )
 
     # Notification preferences

@@ -74,12 +74,12 @@ class IsTenantMember(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         
-        if not hasattr(request, 'tenant') or not request.tenant:
-            return False
-        
-        # Superusuarios pueden acceder a todo
+        # Superusuarios pueden acceder a todo sin tenant
         if request.user.is_superuser:
             return True
+        
+        if not hasattr(request, 'tenant') or not request.tenant:
+            return False
         
         return request.user.tenant_id == request.tenant.id
 
