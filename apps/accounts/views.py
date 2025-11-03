@@ -183,10 +183,19 @@ class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
             'is_active': user.is_active
         })
 
-    @action(detail=False, methods=['put'])
-    def update_preferences(self, request):
-        """Actualizar preferencias del usuario"""
-        preferences = request.user.preferences
+    @action(detail=False, methods=['get', 'put'], permission_classes=[permissions.IsAuthenticated])
+    def preferences(self, request):
+        """Obtener o actualizar preferencias del usuario"""
+        # Obtener o crear preferencias si no existen
+        preferences, created = UserPreferences.objects.get_or_create(
+            user=request.user
+        )
+
+        if request.method == 'GET':
+            serializer = UserPreferencesSerializer(preferences)
+            return Response(serializer.data)
+
+        # PUT - Actualizar preferencias
         serializer = UserPreferencesSerializer(
             preferences,
             data=request.data,
