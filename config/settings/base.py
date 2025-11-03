@@ -228,3 +228,11 @@ REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 # Configuración de backups
 BACKUPS_DIR = BASE_DIR / 'media' / 'backups'
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+
+# S3 Configuration (optional for backups)
+USE_S3_BACKUP = config('USE_S3_BACKUP', default=False, cast=bool)
+if USE_S3_BACKUP:
+    AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
