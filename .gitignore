@@ -37,3 +37,5 @@ Thumbs.db
 # Others
 runserver.bat
 runserver.ps1
+.psi
+.bat

@@ -237,3 +237,9 @@ if USE_S3_BACKUP:
     AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
     AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+from config.settings.logging import LOGGING
