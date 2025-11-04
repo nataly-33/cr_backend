@@ -3,13 +3,15 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
+from .base import BaseReportGenerator
+from typing import List, Dict, Any, Optional
 
 
-class ExcelReportGenerator:
+class ExcelReportGenerator(BaseReportGenerator):
     """Generador de reportes en Excel"""
     
-    def __init__(self, title="Reporte"):
-        self.title = title
+    def __init__(self, title="Reporte", format_type="excel"):
+        super().__init__(title, format_type)
         self.workbook = Workbook()
         self.workbook.remove(self.workbook.active)  # Remover hoja por defecto
         
@@ -32,25 +34,93 @@ class ExcelReportGenerator:
         """Crear una nueva hoja"""
         return self.workbook.create_sheet(title=name)
     
-    def add_title_row(self, sheet, title, row=1):
-        """Agregar título en la primera fila"""
-        sheet.merge_cells(f'A{row}:F{row}')
-        cell = sheet[f'A{row}']
-        cell.value = title
-        cell.font = self.title_font
-        cell.alignment = self.title_alignment
+    def add_section(self, title: str, content: str) -> None:
+        """
+        Implementar método abstracto: Agregar una sección al reporte.
+        
+        Args:
+            title: Título de la sección
+            content: Contenido de la sección
+        """
+        if not self.workbook.sheetnames:
+            sheet = self.workbook.create_sheet("Sheet1")
+        else:
+            sheet = self.workbook.active
+        
+        current_row = sheet.max_row + 2
+        sheet[f'A{current_row}'] = title
+        sheet[f'A{current_row}'].font = self.title_font
+        current_row += 1
+        sheet[f'A{current_row}'] = content
     
-    def add_metadata(self, sheet, tenant_name, generated_by, row=2):
-        """Agregar metadata"""
-        sheet[f'A{row}'] = 'Organización:'
-        sheet[f'B{row}'] = tenant_name
-        sheet[f'A{row+1}'] = 'Generado por:'
-        sheet[f'B{row+1}'] = generated_by
-        sheet[f'A{row+2}'] = 'Fecha:'
-        sheet[f'B{row+2}'] = datetime.now().strftime('%d/%m/%Y %H:%M')
+    def add_table(self, data: List[Dict[str, Any]], headers: Optional[List[str]] = None) -> None:
+        """
+        Implementar método abstracto: Agregar una tabla al reporte.
+        
+        Args:
+            data: Lista de diccionarios con los datos
+            headers: Lista de encabezados (opcional)
+        """
+        if not data:
+            return
+        
+        if not self.workbook.sheetnames:
+            sheet = self.workbook.create_sheet("Data")
+        else:
+            sheet = self.workbook.active
+        
+        start_row = sheet.max_row + 2
+        
+        # Usar headers si están provided, si no extraer del primer diccionario
+        if headers is None:
+            headers = list(data[0].keys()) if data else []
+        
+        # Agregar headers
+        for col_idx, header in enumerate(headers, 1):
+            cell = sheet.cell(row=start_row, column=col_idx)
+            cell.value = header
+            cell.font = self.header_font
+            cell.fill = self.header_fill
+            cell.alignment = self.header_alignment
+            cell.border = self.border
+        
+        # Agregar datos
+        for row_idx, row_data in enumerate(data, start_row + 1):
+            for col_idx, header in enumerate(headers, 1):
+                cell = sheet.cell(row=row_idx, column=col_idx)
+                cell.value = row_data.get(header, '')
+                cell.border = self.border
+                
+                # Alternar colores de fondo
+                if row_idx % 2 == 0:
+                    cell.fill = PatternFill(start_color='F3F4F6', end_color='F3F4F6', fill_type='solid')
+        
+        # Ajustar ancho de columnas
+        for col_idx in range(1, len(headers) + 1):
+            column_letter = get_column_letter(col_idx)
+            sheet.column_dimensions[column_letter].width = 20
     
-    def add_table(self, sheet, data, start_row=6, headers=None):
-        """Agregar tabla con datos"""
+    def generate(self) -> bytes:
+        """
+        Implementar método abstracto: Generar el Excel y retornar bytes.
+        
+        Returns:
+            bytes: Contenido del Excel
+        """
+        buffer = BytesIO()
+        self.workbook.save(buffer)
+        buffer.seek(0)
+        return buffer.getvalue()
+    
+    def _generate_old(self):
+        """Generar el Excel y retornar el buffer (versión antigua)"""
+        buffer = BytesIO()
+        self.workbook.save(buffer)
+        buffer.seek(0)
+        return buffer
+    
+    def _add_table_old(self, sheet, data, start_row=6, headers=None):
+        """Agregar tabla con datos (versión antigua, para compatibilidad)"""
         if not data:
             return
         
@@ -80,12 +150,22 @@ class ExcelReportGenerator:
             column_letter = get_column_letter(col_idx)
             sheet.column_dimensions[column_letter].width = 20
     
-    def generate(self):
-        """Generar el Excel y retornar el buffer"""
-        buffer = BytesIO()
-        self.workbook.save(buffer)
-        buffer.seek(0)
-        return buffer
+    def add_title_row(self, sheet, title, row=1):
+        """Agregar título en la primera fila (método antiguo)"""
+        sheet.merge_cells(f'A{row}:F{row}')
+        cell = sheet[f'A{row}']
+        cell.value = title
+        cell.font = self.title_font
+        cell.alignment = self.title_alignment
+    
+    def add_metadata(self, sheet, tenant_name, generated_by, row=2):
+        """Agregar metadata (método antiguo)"""
+        sheet[f'A{row}'] = 'Organización:'
+        sheet[f'B{row}'] = tenant_name
+        sheet[f'A{row+1}'] = 'Generado por:'
+        sheet[f'B{row+1}'] = generated_by
+        sheet[f'A{row+2}'] = 'Fecha:'
+        sheet[f'B{row+2}'] = datetime.now().strftime('%d/%m/%Y %H:%M')
     
     def save(self, filename):
         """Guardar el Excel en un archivo"""

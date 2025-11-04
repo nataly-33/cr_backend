@@ -127,8 +127,8 @@ def create_permissions_and_roles(tenant):
     set_current_tenant(tenant)
     
     # Definir recursos y acciones
-    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit']
-    actions = ['create', 'read', 'update', 'delete', 'export', 'sign']
+    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit', 'notification']
+    actions = ['create', 'read', 'update', 'delete', 'export', 'sign', 'manage']
     
     permissions = []
     permissions_dict = {}
@@ -139,7 +139,13 @@ def create_permissions_and_roles(tenant):
             # No todos los recursos tienen todas las acciones
             if resource == 'audit' and action in ['create', 'update', 'delete']:
                 continue
+            if resource == 'audit' and action in ['sign', 'manage']:
+                continue
             if action == 'sign' and resource != 'document':
+                continue
+            if resource == 'notification' and action == 'sign':
+                continue
+            if resource == 'notification' and action == 'export':
                 continue
             
             perm_code = f'{resource}.{action}'
@@ -192,6 +198,10 @@ def create_permissions_and_roles(tenant):
                 permissions_dict.get('report.read'),
                 permissions_dict.get('report.create'),
                 permissions_dict.get('report.export'),
+                # Notificaciones: lectura, actualización, creación
+                permissions_dict.get('notification.read'),
+                permissions_dict.get('notification.update'),
+                permissions_dict.get('notification.create'),
             ]
         },
         'Paciente': {
@@ -202,6 +212,8 @@ def create_permissions_and_roles(tenant):
                 # La validación de "solo la suya" se hace en el ViewSet con has_object_permission
                 permissions_dict.get('clinical_record.read'),
                 permissions_dict.get('document.read'),
+                # Notificaciones: solo lectura
+                permissions_dict.get('notification.read'),
             ]
         }
     }
