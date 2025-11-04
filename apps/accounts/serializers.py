@@ -64,8 +64,8 @@ class UserPreferencesSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserPreferences
         fields = [
-            'theme', 'language', 'email_notifications',
-            'push_notifications', 'custom_settings'
+            'theme', 'language', 'font_size', 'font_family',
+            'email_notifications', 'push_notifications', 'custom_settings'
         ]
 
 
@@ -154,6 +154,8 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Serializer personalizado para JWT con datos del usuario"""
+    username = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
 
     @classmethod
     def get_token(cls, user):
@@ -168,6 +170,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
+        # Soportar tanto 'email' como 'username' (que se mapea a email)
+        email = attrs.get('email') or attrs.get('username')
+        password = attrs.get('password')
+
+        if not email or not password:
+            raise serializers.ValidationError('Email y contraseña son requeridos')
+
+        # Reemplazar username con email para que funcione con el modelo personalizado
+        attrs['username'] = email
+
         data = super().validate(attrs)
 
         # Agregar información del usuario a la respuesta

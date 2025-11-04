@@ -20,6 +20,10 @@ urlpatterns = [
     path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('register/', RegisterView.as_view({'post': 'register'}), name='register'),
 
+    # Rutas adicionales - IMPORTANTE: Ir antes del router para que tengan prioridad
+    path('users/me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
+    path('users/me/preferences/', UserViewSet.as_view({'get': 'get_preferences', 'put': 'update_preferences'}), name='user-preferences'),
+
     # User management
     path('', include(router.urls)),
 ]

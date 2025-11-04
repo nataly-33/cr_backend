@@ -5,8 +5,13 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 
-from .models import ClinicalRecord
-from .serializers import ClinicalRecordSerializer, ClinicalRecordCreateSerializer
+from .models import ClinicalRecord, ClinicalForm
+from .serializers import (
+    ClinicalRecordSerializer, 
+    ClinicalRecordCreateSerializer,
+    ClinicalFormSerializer,
+    ClinicalFormCreateSerializer
+)
 from apps.core.permissions import (
     IsTenantMember,
     CanManageClinicalRecords,
@@ -114,4 +119,81 @@ class ClinicalRecordViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         return Response({
             'message': 'Historia clínica cerrada exitosamente',
             'status': record.status
+        })
+
+
+@extend_schema(tags=['Clinical Forms'])
+class ClinicalFormViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
+    """
+    ViewSet para gestión de formularios clínicos.
+    
+    Permisos requeridos:
+    - list/retrieve: clinical_record.read
+    - create: clinical_record.create
+    - update: clinical_record.update
+    - delete: clinical_record.delete
+    
+    Los formularios incluyen: Triaje, Notas de evolución, Recetas, Órdenes, etc.
+    """
+    queryset = ClinicalForm.objects.all()
+    permission_classes = [IsTenantMember, CanManageClinicalRecords]
+    resource_name = 'clinical_record'
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['form_type', 'doctor_name', 'doctor_specialty']
+    filterset_fields = ['form_type', 'clinical_record', 'filled_by']
+    ordering_fields = ['form_date', 'created_at']
+    ordering = ['-form_date']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ClinicalFormCreateSerializer
+        return ClinicalFormSerializer
+
+    def get_queryset(self):
+        """Filtrar formularios del tenant actual"""
+        return ClinicalForm.objects.filter(tenant=self.request.tenant)
+
+    def perform_create(self, serializer):
+        """Guardar formulario con tenant y usuario actual"""
+        serializer.save(
+            tenant=self.request.tenant,
+            filled_by=self.request.user
+        )
+
+    @action(detail=False, methods=['get'])
+    def by_record(self, request):
+        """Obtener todos los formularios de una historia clínica"""
+        record_id = request.query_params.get('clinical_record_id')
+        if not record_id:
+            return Response(
+                {'error': 'Se requiere clinical_record_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        forms = self.get_queryset().filter(clinical_record_id=record_id)
+        serializer = self.get_serializer(forms, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def by_type(self, request):
+        """Obtener formularios por tipo"""
+        form_type = request.query_params.get('form_type')
+        if not form_type:
+            return Response(
+                {'error': 'Se requiere form_type'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        forms = self.get_queryset().filter(form_type=form_type)
+        serializer = self.get_serializer(forms, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def form_types(self, request):
+        """Obtener lista de tipos de formularios disponibles"""
+        return Response({
+            'form_types': [
+                {'value': choice[0], 'label': choice[1]}
+                for choice in ClinicalForm.FORM_TYPE_CHOICES
+            ]
         })

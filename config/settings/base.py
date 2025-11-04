@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'apps.audit',
     'apps.reports',
     'apps.backup',
+    'apps.notifications',
 ]
 
 MIDDLEWARE = [
@@ -75,16 +76,28 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DATABASE_NAME', default='clinidocs_db'),
-        'USER': config('DATABASE_USER', default='clinidocs_user'),
-        'PASSWORD': config('DATABASE_PASSWORD', default=''),
-        'HOST': config('DATABASE_HOST', default='localhost'),
-        'PORT': config('DATABASE_PORT', default='5432'),
+# Support both SQLite (for development) and PostgreSQL (for production)
+DATABASE_ENGINE = config('DATABASE_ENGINE', default='sqlite')
+
+if DATABASE_ENGINE == 'postgresql':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DATABASE_NAME', default='clinidocs_db'),
+            'USER': config('DATABASE_USER', default='clinidocs_user'),
+            'PASSWORD': config('DATABASE_PASSWORD', default=''),
+            'HOST': config('DATABASE_HOST', default='localhost'),
+            'PORT': config('DATABASE_PORT', default='5432'),
+        }
     }
-}
+else:
+    # SQLite for development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / config('DATABASE_NAME', default='db.sqlite3'),
+        }
+    }
 
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
@@ -216,3 +229,17 @@ REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 # Configuración de backups
 BACKUPS_DIR = BASE_DIR / 'media' / 'backups'
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+
+# S3 Configuration (optional for backups)
+USE_S3_BACKUP = config('USE_S3_BACKUP', default=False, cast=bool)
+if USE_S3_BACKUP:
+    AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+from config.settings.logging import LOGGING

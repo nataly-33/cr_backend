@@ -1,6 +1,25 @@
 # 🏥 SISTEMA DE GESTIÓN DOCUMENTAL - HISTORIAS CLÍNICAS
 
-## 📋 TABLA DE CONTENIDOS
+## � DOCUMENTACIÓN (⭐ Empieza aquí)
+
+### 🗺️ Índice de Guías
+
+| Documento | Propósito | Tiempo |
+|-----------|-----------|--------|
+| **[DOCUMENTATION_INDEX.md](../DOCUMENTATION_INDEX.md)** | Índice centralizado de todas las guías | 5 min |
+| **[SYSTEM_VERIFICATION.md](./SYSTEM_VERIFICATION.md)** | Verificar que todo funciona | 30 min |
+| **[API_ENDPOINTS_REFERENCE.md](./API_ENDPOINTS_REFERENCE.md)** | Referencia de todos los endpoints | 15 min |
+| **[TESTING_GUIDE.md](./TESTING_GUIDE.md)** | Cómo testear la API | 20 min |
+| **[TROUBLESHOOTING_GUIDE.md](./TROUBLESHOOTING_GUIDE.md)** | Resolver problemas comunes | 5-30 min |
+| **[LOGGING_GUIDE.md](./LOGGING_GUIDE.md)** | Cómo ver y monitorear logs | 10 min |
+| **[DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)** | Arquitectura y desarrollo | 45 min |
+| **[RESUMEN_FINAL.md](./RESUMEN_FINAL.md)** | Resumen del proyecto | 20 min |
+
+**👉 Recomendación:** Comienza con [SYSTEM_VERIFICATION.md](./SYSTEM_VERIFICATION.md) para verificar que todo funciona.
+
+---
+
+## �📋 TABLA DE CONTENIDOS
 
 1. [Visión General del Proyecto](#1-visión-general-del-proyecto)
 2. [Stack Tecnológico](#2-stack-tecnológico)

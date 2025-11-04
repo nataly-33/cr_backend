@@ -7,15 +7,21 @@ logger = logging.getLogger(__name__)
 
 
 class OCRService:
-    """Servicio de OCR usando AWS Textract"""
+    """Servicio de OCR usando AWS Textract (opcional)"""
 
     def __init__(self):
-        self.textract_client = boto3.client(
-            'textract',
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            region_name=settings.AWS_TEXTRACT_REGION
-        )
+        # Solo inicializar Textract si AWS está configurado
+        self.use_textract = hasattr(settings, 'AWS_ACCESS_KEY_ID') and settings.AWS_ACCESS_KEY_ID
+        
+        if self.use_textract:
+            self.textract_client = boto3.client(
+                'textract',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=getattr(settings, 'AWS_TEXTRACT_REGION', settings.AWS_S3_REGION_NAME)
+            )
+        else:
+            self.textract_client = None
 
     def extract_text_from_s3(self, bucket, file_path):
         """
@@ -28,6 +34,16 @@ class OCRService:
         Returns:
             dict con 'text', 'confidence' y 'job_id'
         """
+        if not self.use_textract:
+            logger.info("OCR not available (AWS not configured)")
+            return {
+                'text': '',
+                'confidence': 0,
+                'job_id': '',
+                'success': False,
+                'error': 'AWS Textract not configured'
+            }
+            
         try:
             # Para documentos simples (imágenes, PDFs de 1 página)
             response = self.textract_client.detect_document_text(
@@ -216,8 +232,17 @@ class DocumentService:
         Procesa OCR de forma asíncrona
         Por ahora lo hace síncrono, más adelante usar Celery
         """
+        # Solo procesar OCR si AWS está configurado
+        if not self.ocr_service.use_textract:
+            logger.info("OCR processing skipped (AWS not configured)")
+            return
+            
         try:
-            bucket = settings.AWS_STORAGE_BUCKET_NAME
+            bucket = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', None)
+            if not bucket:
+                logger.info("OCR processing skipped (S3 bucket not configured)")
+                return
+                
             file_path = document_instance.file_path
 
             result = self.ocr_service.extract_text_from_s3(bucket, file_path)
