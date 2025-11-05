@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from .models import ClinicalRecord, ClinicalForm
 from apps.patients.serializers import PatientListSerializer
 
@@ -25,7 +26,8 @@ class ClinicalRecordSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'record_number', 'created_at', 'updated_at', 'created_by']
 
-    def get_documents_count(self, obj):
+    @extend_schema_field(serializers.IntegerField)
+    def get_documents_count(self, obj) -> int:
         """Cuenta los documentos de esta historia clínica"""
         return obj.clinicaldocument_set.filter(deleted_at__isnull=True).count()
 

@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
+from typing import Dict, Optional
 from .models import ClinicalDocument, MedicalImage, DocumentAccessLog
 
 
@@ -39,7 +41,8 @@ class ClinicalDocumentSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'created_by'
         ]
 
-    def get_clinical_record_info(self, obj):
+    @extend_schema_field(serializers.DictField)
+    def get_clinical_record_info(self, obj) -> Dict[str, str]:
         """Info resumida de la historia clínica"""
         return {
             'id': str(obj.clinical_record.id),
@@ -47,7 +50,8 @@ class ClinicalDocumentSerializer(serializers.ModelSerializer):
             'patient_name': obj.clinical_record.patient.get_full_name()
         }
 
-    def get_file_url(self, obj):
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_file_url(self, obj) -> Optional[str]:
         """Genera URL firmada para descarga"""
         if not obj.file_path:
             return None
@@ -142,20 +146,23 @@ class MedicalImageSerializer(serializers.ModelSerializer):
             'created_at', 'created_by'
         ]
 
-    def get_clinical_record_info(self, obj):
+    @extend_schema_field(serializers.DictField)
+    def get_clinical_record_info(self, obj) -> Dict[str, str]:
         return {
             'id': str(obj.clinical_record.id),
             'record_number': obj.clinical_record.record_number
         }
 
-    def get_file_url(self, obj):
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_file_url(self, obj) -> Optional[str]:
         if not obj.file_path:
             return None
         from .storage import S3Storage
         storage = S3Storage()
         return storage.get_presigned_url(obj.file_path)
 
-    def get_enhanced_url(self, obj):
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_enhanced_url(self, obj) -> Optional[str]:
         if not obj.enhanced_image_path:
             return None
         from .storage import S3Storage
