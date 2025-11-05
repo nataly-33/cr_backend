@@ -16,13 +16,12 @@ urlpatterns = [
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
-   
-    # API Routes - PÚBLICAS (sin JWT)
-    path('api/tenants/public/', include('apps.tenants.urls')),  # Incluye rutas públicas
 
-    # API Routes
-    path('api/', include('apps.accounts.urls')),
+    # API Routes Públicas (incluye /api/tenants/public/)
     path('api/tenants/', include('apps.tenants.urls')),
+
+    # API Routes Protegidas
+    path('api/', include('apps.accounts.urls')),
     path('api/patients/', include('apps.patients.urls')),
     path('api/clinical-records/', include('apps.clinical_records.urls')),
     path('api/documents/', include('apps.documents.urls')),
@@ -30,7 +29,6 @@ urlpatterns = [
     path('api/reports/', include('apps.reports.urls')),
     path('api/backup/', include('apps.backup.urls')),
     path('api/notifications/', include('apps.notifications.urls')),
-
 ]
 
 # Serve media files in development

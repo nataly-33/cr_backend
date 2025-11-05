@@ -5,9 +5,6 @@ DEBUG = True
 # Disable password validation in development
 AUTH_PASSWORD_VALIDATORS = []
 
-# Email backend para desarrollo (consola)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
 # Celery - Always eager in development (synchronous)
 CELERY_TASK_ALWAYS_EAGER = config('CELERY_TASK_ALWAYS_EAGER', default=False, cast=bool)
 CELERY_TASK_EAGER_PROPAGATES = True
