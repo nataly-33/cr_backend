@@ -19,7 +19,7 @@ from apps.core.permissions import (
 )
 
 
-@extend_schema(tags=['Clinic Record'])
+@extend_schema(tags=['Clinical Records'])
 class ClinicalRecordViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión de historias clínicas.

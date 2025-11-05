@@ -3,18 +3,24 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 
 from .models import Notification, NotificationPreference
 from .serializers import NotificationSerializer, NotificationPreferenceSerializer
 
-
+extend_schema(tags=['Notifications'])
 class NotificationViewSet(viewsets.ModelViewSet):
     """ViewSet para notificaciones del usuario"""
     permission_classes = [IsAuthenticated]
     serializer_class = NotificationSerializer
-    
+    queryset = Notification.objects.none()  # Para drf-spectacular schema
+
     def get_queryset(self):
         """Solo mostrar notificaciones del usuario actual"""
+        # Prevenir error en generación de schema
+        if getattr(self, 'swagger_fake_view', False):
+            return Notification.objects.none()
+
         return Notification.objects.filter(
             user=self.request.user,
             tenant=self.request.tenant
@@ -58,19 +64,20 @@ class NotificationViewSet(viewsets.ModelViewSet):
         
         return Response(NotificationSerializer(notification).data)
 
-
+extend_schema(tags=['Notifications'])
 class NotificationPreferenceViewSet(viewsets.ViewSet):
     """ViewSet para preferencias de notificación"""
     permission_classes = [IsAuthenticated]
-    
+    serializer_class = NotificationPreferenceSerializer  # Para drf-spectacular schema
+
     @action(detail=False, methods=['get', 'put'])
     def my_preferences(self, request):
         """Obtener/actualizar preferencias del usuario"""
-        prefs, created = NotificationPreference.objects.get_or_create(
+        prefs, _ = NotificationPreference.objects.get_or_create(
             user=request.user,
             tenant=request.tenant
         )
-        
+
         if request.method == 'PUT':
             serializer = NotificationPreferenceSerializer(
                 prefs,
@@ -80,6 +87,6 @@ class NotificationPreferenceViewSet(viewsets.ViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data)
-        
+
         serializer = NotificationPreferenceSerializer(prefs)
         return Response(serializer.data)

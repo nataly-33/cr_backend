@@ -2,11 +2,13 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema
 from .models import BackupJob
 from .serializers import BackupJobSerializer
 from .services import BackupService
 
 
+@extend_schema(tags=['Backups'])
 class BackupViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet para gestión de backups"""
     queryset = BackupJob.objects.all()

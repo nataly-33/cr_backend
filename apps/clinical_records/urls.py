@@ -3,7 +3,9 @@ from rest_framework.routers import DefaultRouter
 from .views import ClinicalRecordViewSet, ClinicalFormViewSet
 
 router = DefaultRouter()
-router.register(r'records', ClinicalRecordViewSet, basename='clinical-record')
+# Records en la raíz /api/clinical-records/
+router.register(r'', ClinicalRecordViewSet, basename='clinical-record')
+# Forms en /api/clinical-records/forms/
 router.register(r'forms', ClinicalFormViewSet, basename='clinical-form')
 
 urlpatterns = [

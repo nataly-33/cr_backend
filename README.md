@@ -4,22 +4,51 @@
 
 ### 🗺️ Índice de Guías
 
-| Documento | Propósito | Tiempo |
-|-----------|-----------|--------|
-| **[DOCUMENTATION_INDEX.md](../DOCUMENTATION_INDEX.md)** | Índice centralizado de todas las guías | 5 min |
-| **[SYSTEM_VERIFICATION.md](./SYSTEM_VERIFICATION.md)** | Verificar que todo funciona | 30 min |
-| **[API_ENDPOINTS_REFERENCE.md](./API_ENDPOINTS_REFERENCE.md)** | Referencia de todos los endpoints | 15 min |
-| **[TESTING_GUIDE.md](./TESTING_GUIDE.md)** | Cómo testear la API | 20 min |
-| **[TROUBLESHOOTING_GUIDE.md](./TROUBLESHOOTING_GUIDE.md)** | Resolver problemas comunes | 5-30 min |
-| **[LOGGING_GUIDE.md](./LOGGING_GUIDE.md)** | Cómo ver y monitorear logs | 10 min |
-| **[DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)** | Arquitectura y desarrollo | 45 min |
-| **[RESUMEN_FINAL.md](./RESUMEN_FINAL.md)** | Resumen del proyecto | 20 min |
+| Documento                                                      | Propósito                              | Tiempo   |
+| -------------------------------------------------------------- | -------------------------------------- | -------- |
+| **[DOCUMENTATION_INDEX.md](../DOCUMENTATION_INDEX.md)**        | Índice centralizado de todas las guías | 5 min    |
+| **[SYSTEM_VERIFICATION.md](./SYSTEM_VERIFICATION.md)**         | Verificar que todo funciona            | 30 min   |
+| **[API_ENDPOINTS_REFERENCE.md](./API_ENDPOINTS_REFERENCE.md)** | Referencia de todos los endpoints      | 15 min   |
+| **[TESTING_GUIDE.md](./TESTING_GUIDE.md)**                     | Cómo testear la API                    | 20 min   |
+| **[TROUBLESHOOTING_GUIDE.md](./TROUBLESHOOTING_GUIDE.md)**     | Resolver problemas comunes             | 5-30 min |
+| **[LOGGING_GUIDE.md](./LOGGING_GUIDE.md)**                     | Cómo ver y monitorear logs             | 10 min   |
+| **[DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)**             | Arquitectura y desarrollo              | 45 min   |
+| **[RESUMEN_FINAL.md](./RESUMEN_FINAL.md)**                     | Resumen del proyecto                   | 20 min   |
 
 **👉 Recomendación:** Comienza con [SYSTEM_VERIFICATION.md](./SYSTEM_VERIFICATION.md) para verificar que todo funciona.
 
+# 🏥 ClinicRecords - Backend (Django + DRF)
+
+**Sistema SaaS Multi-tenant para Gestión de Historias Clínicas y Documentos Médicos**
+
 ---
 
-## �📋 TABLA DE CONTENIDOS
+## 📘 Documentación Completa
+
+**👉 Ver [docs/INDEX.md](./docs/INDEX.md) para el índice completo de documentación**
+
+### 📖 Documentos Principales
+
+| Documento                                                                | Propósito                                     | Audiencia       |
+| ------------------------------------------------------------------------ | --------------------------------------------- | --------------- |
+| **[docs/REVISION.md](./docs/REVISION.md)** ⭐                            | Estado del proyecto, sprints, funcionalidades | Todos           |
+| **[docs/DOCUMENTATION_GUIDE.md](./docs/DOCUMENTATION_GUIDE.md)**         | Documentación técnica completa                | Desarrolladores |
+| **[docs/DEVELOPMENT_GUIDE.md](./docs/DEVELOPMENT_GUIDE.md)**             | Guía para desarrollar nuevas funcionalidades  | Desarrolladores |
+| **[docs/API_ENDPOINTS_REFERENCE.md](./docs/API_ENDPOINTS_REFERENCE.md)** | Referencia de endpoints                       | Todos           |
+
+### 🔧 Guías Específicas
+
+- **[docs/guides/QUICKSTART.md](./docs/guides/QUICKSTART.md)** - Guía rápida de inicio
+- **[docs/guides/TROUBLESHOOTING_GUIDE.md](./docs/guides/TROUBLESHOOTING_GUIDE.md)** - Solución de problemas
+- **[docs/guides/TESTING_GUIDE.md](./docs/guides/TESTING_GUIDE.md)** - Guía de testing
+- **[docs/deployment/SAAS_SETUP_GUIDE.md](./docs/deployment/SAAS_SETUP_GUIDE.md)** - Configuración SaaS
+- **[docs/advanced/CELERY_BACKUP_SETUP.md](./docs/advanced/CELERY_BACKUP_SETUP.md)** - Celery y backups
+
+**👉 Recomendación:** Si eres nuevo, comienza con [docs/guides/QUICKSTART.md](./docs/guides/QUICKSTART.md)
+
+---
+
+## 📋 TABLA DE CONTENIDOS
 
 1. [Visión General del Proyecto](#1-visión-general-del-proyecto)
 2. [Stack Tecnológico](#2-stack-tecnológico)

@@ -29,7 +29,7 @@ from apps.core.permissions import (
     list=extend_schema(
         summary="Listar documentos clínicos",
         description="Obtiene la lista de documentos clínicos del tenant actual",
-        tags=['documents'],
+        tags=['Documents'],
         parameters=[
             OpenApiParameter(
                 name='document_type',

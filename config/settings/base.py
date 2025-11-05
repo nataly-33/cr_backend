@@ -75,29 +75,17 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database
-# Support both SQLite (for development) and PostgreSQL (for production)
-DATABASE_ENGINE = config('DATABASE_ENGINE', default='sqlite')
-
-if DATABASE_ENGINE == 'postgresql':
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': config('DATABASE_NAME', default='clinidocs_db'),
-            'USER': config('DATABASE_USER', default='clinidocs_user'),
-            'PASSWORD': config('DATABASE_PASSWORD', default=''),
-            'HOST': config('DATABASE_HOST', default='localhost'),
-            'PORT': config('DATABASE_PORT', default='5432'),
-        }
+# Database - PostgreSQL 
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DATABASE_NAME', default='clinic_records_db'),
+        'USER': config('DATABASE_USER', default='clinic_admin'),
+        'PASSWORD': config('DATABASE_PASSWORD'),
+        'HOST': config('DATABASE_HOST', default='localhost'),
+        'PORT': config('DATABASE_PORT', default='5432'),
     }
-else:
-    # SQLite for development
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / config('DATABASE_NAME', default='db.sqlite3'),
-        }
-    }
+}
 
 # Custom User Model
 AUTH_USER_MODEL = 'accounts.User'
@@ -199,18 +187,19 @@ SPECTACULAR_SETTINGS = {
         }
     ],
     
-    # Tags
     'TAGS': [
-        {'name': 'auth', 'description': 'Autenticación y autorización'},
-        {'name': 'users', 'description': 'Gestión de usuarios'},
-        {'name': 'tenants', 'description': 'Gestión de tenants (hospitales/clínicas)'},
-        {'name': 'patients', 'description': 'Gestión de pacientes'},
-        {'name': 'clinical-records', 'description': 'Historias clínicas'},
-        {'name': 'documents', 'description': 'Documentos clínicos'},
-        {'name': 'reports', 'description': 'Sistema de reportes'},
-        {'name': 'audit', 'description': 'Logs de auditoría'},
-        {'name': 'backup', 'description': 'Sistema de backup'},
-        {'name': 'ai', 'description': 'Servicios de IA (OCR, ML)'},
+        {'name': 'Accounts', 'description': 'Autenticación y gestión de usuarios'},
+        {'name': 'Audit', 'description': 'Logs de auditoría'},
+        {'name': 'Backup', 'description': 'Sistema de backup'},
+        {'name': 'Clinical Forms', 'description': 'Formularios clínicos'},
+        {'name': 'Clinical Records', 'description': 'Historias clínicas'},
+        {'name': 'Documents', 'description': 'Documentos clínicos'},
+        {'name': 'Notifications', 'description': 'Sistema de notificaciones'},
+        {'name': 'Patients', 'description': 'Gestión de pacientes'},
+        {'name': 'Public - Planes', 'description': 'Planes de suscripción (público)'},
+        {'name': 'Public - Registro', 'description': 'Registro de nuevos tenants (público)'},
+        {'name': 'Reports', 'description': 'Sistema de reportes'},
+        {'name': 'Tenants', 'description': 'Gestión de tenants (hospitales/clínicas)'},
     ],
 }
 
@@ -237,6 +226,25 @@ if USE_S3_BACKUP:
     AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
     AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
+
+# SendGrid Configuration
+SENDGRID_ENABLED = config('SENDGRID_ENABLED', default=False, cast=bool)
+
+if SENDGRID_ENABLED:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.sendgrid.net'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = 'apikey' 
+    EMAIL_HOST_PASSWORD = config('SENDGRID_API_KEY')
+    DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@clinidocs.com')
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@localhost')
+
+# URLs para emails
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+BASE_DOMAIN = config('BASE_DOMAIN', default='localhost')
 
 # ============================================================================
 # LOGGING

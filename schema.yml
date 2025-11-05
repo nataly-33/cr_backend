@@ -1,0 +1,5756 @@
+openapi: 3.0.3
+info:
+  title: CliniDocs API
+  version: 1.0.0
+  description: Sistema de Gestión Documental de Historias Clínicas - API Documentation
+paths:
+  /api/audit/:
+    get:
+      operationId: audit_list
+      description: |-
+        ViewSet para consultar logs de auditoría (solo lectura)
+        Solo admins pueden ver logs
+      parameters:
+      - in: query
+        name: action_type
+        schema:
+          type: string
+          title: Tipo de acción
+          enum:
+          - CREATE
+          - DELETE
+          - DOWNLOAD
+          - EXPORT
+          - LOGIN
+          - LOGOUT
+          - PASSWORD_CHANGE
+          - PERMISSION_CHANGE
+          - READ
+          - SIGN
+          - UPDATE
+        description: |-
+          * `CREATE` - Crear
+          * `READ` - Leer
+          * `UPDATE` - Actualizar
+          * `DELETE` - Eliminar
+          * `EXPORT` - Exportar
+          * `LOGIN` - Login
+          * `LOGOUT` - Logout
+          * `PASSWORD_CHANGE` - Cambio de Contraseña
+          * `PERMISSION_CHANGE` - Cambio de Permisos
+          * `SIGN` - Firma Digital
+          * `DOWNLOAD` - Descarga
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: resource_type
+        schema:
+          type: string
+      - in: query
+        name: response_status
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: user
+        schema:
+          type: string
+          format: uuid
+      tags:
+      - Audit
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAuditLogListList'
+          description: ''
+  /api/audit/{id}/:
+    get:
+      operationId: audit_retrieve
+      description: |-
+        ViewSet para consultar logs de auditoría (solo lectura)
+        Solo admins pueden ver logs
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Log de Auditoría.
+        required: true
+      tags:
+      - Audit
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+          description: ''
+  /api/audit/{id}/verify_integrity/:
+    get:
+      operationId: audit_verify_integrity_retrieve
+      description: Verifica la integridad de un log específico
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Log de Auditoría.
+        required: true
+      tags:
+      - Audit
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+          description: ''
+  /api/audit/recent_suspicious/:
+    get:
+      operationId: audit_recent_suspicious_retrieve
+      description: Actividad sospechosa reciente
+      tags:
+      - Audit
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+          description: ''
+  /api/audit/stats/:
+    get:
+      operationId: audit_stats_retrieve
+      description: Estadísticas de auditoría
+      tags:
+      - Audit
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+          description: ''
+  /api/audit/verify_all/:
+    post:
+      operationId: audit_verify_all_create
+      description: Verifica la integridad de todos los logs del tenant
+      tags:
+      - Audit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditLogRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AuditLogRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AuditLogRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+          description: ''
+  /api/auth/login/:
+    post:
+      operationId: auth_login_create
+      description: Vista personalizada para obtener JWT
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPairRequest'
+        required: true
+      security:
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          description: No response body
+  /api/auth/permissions/:
+    get:
+      operationId: auth_permissions_list
+      description: ViewSet para listar permisos (solo lectura)
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Accounts
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPermissionList'
+          description: ''
+  /api/auth/permissions/{id}/:
+    get:
+      operationId: auth_permissions_retrieve
+      description: ViewSet para listar permisos (solo lectura)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Permiso.
+        required: true
+      tags:
+      - Accounts
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Permission'
+          description: ''
+  /api/auth/refresh/:
+    post:
+      operationId: auth_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      security:
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/auth/register/:
+    post:
+      operationId: auth_register_create
+      description: Registra un nuevo tenant con usuario admin
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Register'
+          description: ''
+  /api/auth/roles/:
+    get:
+      operationId: auth_roles_list
+      description: ViewSet para gestión de roles
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Accounts
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRoleList'
+          description: ''
+    post:
+      operationId: auth_roles_create
+      description: ViewSet para gestión de roles
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+          description: ''
+  /api/auth/roles/{id}/:
+    get:
+      operationId: auth_roles_retrieve
+      description: ViewSet para gestión de roles
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Rol.
+        required: true
+      tags:
+      - Accounts
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+          description: ''
+    put:
+      operationId: auth_roles_update
+      description: ViewSet para gestión de roles
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Rol.
+        required: true
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+          description: ''
+    patch:
+      operationId: auth_roles_partial_update
+      description: ViewSet para gestión de roles
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Rol.
+        required: true
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedRoleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedRoleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedRoleRequest'
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+          description: ''
+    delete:
+      operationId: auth_roles_destroy
+      description: No permitir eliminar roles del sistema
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Rol.
+        required: true
+      tags:
+      - Accounts
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '204':
+          description: No response body
+  /api/auth/users/:
+    get:
+      operationId: auth_users_list
+      description: ViewSet para gestión de usuarios
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Accounts
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserList'
+          description: ''
+    post:
+      operationId: auth_users_create
+      description: ViewSet para gestión de usuarios
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreate'
+          description: ''
+  /api/auth/users/{id}/:
+    get:
+      operationId: auth_users_retrieve
+      description: ViewSet para gestión de usuarios
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Usuario.
+        required: true
+      tags:
+      - Accounts
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    put:
+      operationId: auth_users_update
+      description: ViewSet para gestión de usuarios
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Usuario.
+        required: true
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    patch:
+      operationId: auth_users_partial_update
+      description: ViewSet para gestión de usuarios
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Usuario.
+        required: true
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserRequest'
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    delete:
+      operationId: auth_users_destroy
+      description: ViewSet para gestión de usuarios
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Usuario.
+        required: true
+      tags:
+      - Accounts
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '204':
+          description: No response body
+  /api/auth/users/{id}/change_password/:
+    post:
+      operationId: auth_users_change_password_create
+      description: Cambiar contraseña del usuario
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Usuario.
+        required: true
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/auth/users/{id}/toggle_active/:
+    post:
+      operationId: auth_users_toggle_active_create
+      description: Activar/desactivar usuario
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Usuario.
+        required: true
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/auth/users/me/:
+    get:
+      operationId: auth_users_me_retrieve
+      description: Retorna el usuario actual
+      tags:
+      - Accounts
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/auth/users/update_preferences/:
+    put:
+      operationId: auth_users_update_preferences_update
+      description: Actualizar preferencias del usuario
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/backup/:
+    get:
+      operationId: backup_list
+      description: ViewSet para gestión de backups
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - backup
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBackupJobList'
+          description: ''
+  /api/backup/{id}/:
+    get:
+      operationId: backup_retrieve
+      description: ViewSet para gestión de backups
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this backup job.
+        required: true
+      tags:
+      - backup
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupJob'
+          description: ''
+  /api/backup/{id}/restore/:
+    post:
+      operationId: backup_restore_create
+      description: Restaurar backup
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this backup job.
+        required: true
+      tags:
+      - backup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackupJobRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BackupJobRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BackupJobRequest'
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupJob'
+          description: ''
+  /api/backup/create_backup/:
+    post:
+      operationId: backup_create_backup_create
+      description: Crear nuevo backup
+      tags:
+      - backup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackupJobRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BackupJobRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BackupJobRequest'
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupJob'
+          description: ''
+  /api/clinical-records/:
+    get:
+      operationId: clinical_records_list
+      description: ViewSet para gestión de historias clínicas
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: patient
+        schema:
+          type: string
+          format: uuid
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          title: Estado
+          enum:
+          - active
+          - archived
+          - closed
+        description: |-
+          * `active` - Activa
+          * `archived` - Archivada
+          * `closed` - Cerrada
+      tags:
+      - Clinic Record
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedClinicalRecordList'
+          description: ''
+    post:
+      operationId: clinical_records_create
+      description: ViewSet para gestión de historias clínicas
+      tags:
+      - Clinic Record
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalRecordCreate'
+          description: ''
+  /api/clinical-records/{id}/:
+    get:
+      operationId: clinical_records_retrieve
+      description: ViewSet para gestión de historias clínicas
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Historia Clínica.
+        required: true
+      tags:
+      - Clinic Record
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalRecord'
+          description: ''
+    put:
+      operationId: clinical_records_update
+      description: ViewSet para gestión de historias clínicas
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Historia Clínica.
+        required: true
+      tags:
+      - Clinic Record
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalRecord'
+          description: ''
+    patch:
+      operationId: clinical_records_partial_update
+      description: ViewSet para gestión de historias clínicas
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Historia Clínica.
+        required: true
+      tags:
+      - Clinic Record
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedClinicalRecordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedClinicalRecordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedClinicalRecordRequest'
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalRecord'
+          description: ''
+    delete:
+      operationId: clinical_records_destroy
+      description: ViewSet para gestión de historias clínicas
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Historia Clínica.
+        required: true
+      tags:
+      - Clinic Record
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '204':
+          description: No response body
+  /api/clinical-records/{id}/archive/:
+    post:
+      operationId: clinical_records_archive_create
+      description: Archivar historia clínica
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Historia Clínica.
+        required: true
+      tags:
+      - Clinic Record
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalRecord'
+          description: ''
+  /api/clinical-records/{id}/close/:
+    post:
+      operationId: clinical_records_close_create
+      description: Cerrar historia clínica
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Historia Clínica.
+        required: true
+      tags:
+      - Clinic Record
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClinicalRecordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalRecord'
+          description: ''
+  /api/clinical-records/{id}/documents/:
+    get:
+      operationId: clinical_records_documents_retrieve
+      description: Retorna los documentos de esta historia clínica
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Historia Clínica.
+        required: true
+      tags:
+      - Clinic Record
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalRecord'
+          description: ''
+  /api/clinical-records/{id}/timeline/:
+    get:
+      operationId: clinical_records_timeline_retrieve
+      description: Timeline cronológico de eventos de la historia clínica
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Historia Clínica.
+        required: true
+      tags:
+      - Clinic Record
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalRecord'
+          description: ''
+  /api/documents/:
+    get:
+      operationId: documents_list
+      description: Obtiene la lista de documentos clínicos del tenant actual
+      summary: Listar documentos clínicos
+      parameters:
+      - in: query
+        name: clinical_record
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: document_type
+        schema:
+          type: string
+        description: Filtrar por tipo de documento
+      - in: query
+        name: is_signed
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: specialty
+        schema:
+          type: string
+        description: Filtrar por especialidad
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedClinicalDocumentListList'
+          description: ''
+    post:
+      operationId: documents_create
+      description: Crea un nuevo documento clínico
+      summary: Crear documento clínico
+      tags:
+      - documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClinicalDocumentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClinicalDocumentRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalDocument'
+          description: ''
+  /api/documents/{id}/:
+    get:
+      operationId: documents_retrieve
+      description: Obtiene los detalles de un documento específico
+      summary: Obtener documento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Documento Clínico.
+        required: true
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalDocument'
+          description: ''
+    put:
+      operationId: documents_update
+      description: Actualiza un documento existente
+      summary: Actualizar documento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Documento Clínico.
+        required: true
+      tags:
+      - documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClinicalDocumentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClinicalDocumentRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalDocument'
+          description: ''
+    patch:
+      operationId: documents_partial_update
+      description: ViewSet para gestión de documentos clínicos
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Documento Clínico.
+        required: true
+      tags:
+      - documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedClinicalDocumentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedClinicalDocumentRequest'
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalDocument'
+          description: ''
+    delete:
+      operationId: documents_destroy
+      description: Elimina un documento (soft delete)
+      summary: Eliminar documento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Documento Clínico.
+        required: true
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '204':
+          description: No response body
+  /api/documents/{id}/access_log/:
+    get:
+      operationId: documents_access_log_retrieve
+      description: Retorna el log de accesos del documento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Documento Clínico.
+        required: true
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalDocument'
+          description: ''
+  /api/documents/{id}/download/:
+    get:
+      operationId: documents_download_retrieve
+      description: Descarga el documento (genera URL firmada)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Documento Clínico.
+        required: true
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalDocument'
+          description: ''
+  /api/documents/{id}/sign/:
+    post:
+      operationId: documents_sign_create
+      description: Firma digitalmente el documento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Documento Clínico.
+        required: true
+      tags:
+      - documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClinicalDocumentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClinicalDocumentRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalDocument'
+          description: ''
+  /api/documents/access-logs/:
+    get:
+      operationId: documents_access_logs_list
+      description: ViewSet para consultar logs de acceso (solo lectura)
+      parameters:
+      - in: query
+        name: access_type
+        schema:
+          type: string
+          title: Tipo de acceso
+          enum:
+          - download
+          - print
+          - share
+          - view
+        description: |-
+          * `view` - Visualización
+          * `download` - Descarga
+          * `print` - Impresión
+          * `share` - Compartir
+      - in: query
+        name: document
+        schema:
+          type: string
+          format: uuid
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: user
+        schema:
+          type: string
+          format: uuid
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDocumentAccessLogList'
+          description: ''
+  /api/documents/access-logs/{id}/:
+    get:
+      operationId: documents_access_logs_retrieve
+      description: ViewSet para consultar logs de acceso (solo lectura)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Log de Acceso a Documento.
+        required: true
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentAccessLog'
+          description: ''
+  /api/documents/images/:
+    get:
+      operationId: documents_images_list
+      description: ViewSet para imágenes médicas
+      parameters:
+      - in: query
+        name: clinical_record
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: image_type
+        schema:
+          type: string
+          title: Tipo de imagen
+          enum:
+          - ct_scan
+          - mammography
+          - mri
+          - pet_scan
+          - ultrasound
+          - xray
+        description: |-
+          * `xray` - Rayos X
+          * `ct_scan` - Tomografía
+          * `mri` - Resonancia Magnética
+          * `ultrasound` - Ecografía
+          * `mammography` - Mamografía
+          * `pet_scan` - PET Scan
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMedicalImageList'
+          description: ''
+    post:
+      operationId: documents_images_create
+      description: ViewSet para imágenes médicas
+      tags:
+      - documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MedicalImageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MedicalImageRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalImage'
+          description: ''
+  /api/documents/images/{id}/:
+    get:
+      operationId: documents_images_retrieve
+      description: ViewSet para imágenes médicas
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Imagen Médica.
+        required: true
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalImage'
+          description: ''
+    put:
+      operationId: documents_images_update
+      description: ViewSet para imágenes médicas
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Imagen Médica.
+        required: true
+      tags:
+      - documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MedicalImageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MedicalImageRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalImage'
+          description: ''
+    patch:
+      operationId: documents_images_partial_update
+      description: ViewSet para imágenes médicas
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Imagen Médica.
+        required: true
+      tags:
+      - documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalImageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalImageRequest'
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalImage'
+          description: ''
+    delete:
+      operationId: documents_images_destroy
+      description: ViewSet para imágenes médicas
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Imagen Médica.
+        required: true
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '204':
+          description: No response body
+  /api/documents/search/:
+    get:
+      operationId: documents_search_retrieve
+      description: Búsqueda avanzada en documentos (incluye OCR)
+      tags:
+      - documents
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalDocument'
+          description: ''
+  /api/documents/upload/:
+    post:
+      operationId: documents_upload_create
+      description: Upload de documento con archivo
+      tags:
+      - documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClinicalDocumentUploadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClinicalDocumentUploadRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalDocumentUpload'
+          description: ''
+  /api/patients/:
+    get:
+      operationId: patients_list
+      description: ViewSet para gestión de pacientes
+      parameters:
+      - in: query
+        name: age_max
+        schema:
+          type: number
+      - in: query
+        name: age_min
+        schema:
+          type: number
+      - in: query
+        name: city
+        schema:
+          type: string
+      - in: query
+        name: first_name
+        schema:
+          type: string
+      - in: query
+        name: gender
+        schema:
+          type: string
+          title: Género
+          enum:
+          - F
+          - M
+          - O
+        description: |-
+          * `M` - Masculino
+          * `F` - Femenino
+          * `O` - Otro
+      - in: query
+        name: identity_document
+        schema:
+          type: string
+      - in: query
+        name: last_name
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Patients
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPatientListList'
+          description: ''
+    post:
+      operationId: patients_create
+      description: ViewSet para gestión de pacientes
+      tags:
+      - Patients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+          description: ''
+  /api/patients/{id}/:
+    get:
+      operationId: patients_retrieve
+      description: ViewSet para gestión de pacientes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Paciente.
+        required: true
+      tags:
+      - Patients
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+          description: ''
+    put:
+      operationId: patients_update
+      description: ViewSet para gestión de pacientes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Paciente.
+        required: true
+      tags:
+      - Patients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+          description: ''
+    patch:
+      operationId: patients_partial_update
+      description: ViewSet para gestión de pacientes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Paciente.
+        required: true
+      tags:
+      - Patients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPatientRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPatientRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPatientRequest'
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+          description: ''
+    delete:
+      operationId: patients_destroy
+      description: ViewSet para gestión de pacientes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Paciente.
+        required: true
+      tags:
+      - Patients
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '204':
+          description: No response body
+  /api/patients/{id}/clinical_records/:
+    get:
+      operationId: patients_clinical_records_retrieve
+      description: Retorna las historias clínicas del paciente
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Paciente.
+        required: true
+      tags:
+      - Patients
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+          description: ''
+  /api/patients/stats/:
+    get:
+      operationId: patients_stats_retrieve
+      description: Estadísticas de pacientes del tenant
+      tags:
+      - Patients
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+          description: ''
+  /api/reports/executions/:
+    get:
+      operationId: reports_executions_list
+      description: ViewSet para historial de reportes
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - reports
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReportExecutionList'
+          description: ''
+  /api/reports/executions/{id}/:
+    get:
+      operationId: reports_executions_retrieve
+      description: ViewSet para historial de reportes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this report execution.
+        required: true
+      tags:
+      - reports
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportExecution'
+          description: ''
+  /api/reports/executions/{id}/download/:
+    get:
+      operationId: reports_executions_download_retrieve
+      description: Descargar reporte generado
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this report execution.
+        required: true
+      tags:
+      - reports
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportExecution'
+          description: ''
+  /api/reports/generator/generate/:
+    post:
+      operationId: reports_generator_generate_create
+      description: Generar reporte
+      tags:
+      - reports
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          description: No response body
+  /api/reports/templates/:
+    get:
+      operationId: reports_templates_list
+      description: ViewSet para plantillas de reportes
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - reports
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReportTemplateList'
+          description: ''
+    post:
+      operationId: reports_templates_create
+      description: ViewSet para plantillas de reportes
+      tags:
+      - reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportTemplateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReportTemplateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReportTemplateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportTemplate'
+          description: ''
+  /api/reports/templates/{id}/:
+    get:
+      operationId: reports_templates_retrieve
+      description: ViewSet para plantillas de reportes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this report template.
+        required: true
+      tags:
+      - reports
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportTemplate'
+          description: ''
+    put:
+      operationId: reports_templates_update
+      description: ViewSet para plantillas de reportes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this report template.
+        required: true
+      tags:
+      - reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportTemplateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReportTemplateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReportTemplateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportTemplate'
+          description: ''
+    patch:
+      operationId: reports_templates_partial_update
+      description: ViewSet para plantillas de reportes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this report template.
+        required: true
+      tags:
+      - reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedReportTemplateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedReportTemplateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedReportTemplateRequest'
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportTemplate'
+          description: ''
+    delete:
+      operationId: reports_templates_destroy
+      description: ViewSet para plantillas de reportes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this report template.
+        required: true
+      tags:
+      - reports
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '204':
+          description: No response body
+  /api/tenants/:
+    get:
+      operationId: tenants_list
+      description: ViewSet para consultar información del tenant actual (solo lectura)
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Tenants
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTenantList'
+          description: ''
+  /api/tenants/{id}/:
+    get:
+      operationId: tenants_retrieve
+      description: ViewSet para consultar información del tenant actual (solo lectura)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Tenant.
+        required: true
+      tags:
+      - Tenants
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+          description: ''
+  /api/tenants/current/:
+    get:
+      operationId: tenants_current_retrieve
+      description: Retorna información del tenant actual
+      tags:
+      - Tenants
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+          description: ''
+  /api/tenants/stats/:
+    get:
+      operationId: tenants_stats_retrieve
+      description: Estadísticas del tenant actual
+      tags:
+      - Tenants
+      security:
+      - jwtAuth: []
+      - Bearer:
+          type: http
+          scheme: bearer
+          bearerFormat: JWT
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+          description: ''
+components:
+  schemas:
+    AccessTypeEnum:
+      enum:
+      - view
+      - download
+      - print
+      - share
+      type: string
+      description: |-
+        * `view` - Visualización
+        * `download` - Descarga
+        * `print` - Impresión
+        * `share` - Compartir
+    ActionEnum:
+      enum:
+      - create
+      - read
+      - update
+      - delete
+      - export
+      - sign
+      type: string
+      description: |-
+        * `create` - Crear
+        * `read` - Leer
+        * `update` - Actualizar
+        * `delete` - Eliminar
+        * `export` - Exportar
+        * `sign` - Firmar
+    ActionTypeEnum:
+      enum:
+      - CREATE
+      - READ
+      - UPDATE
+      - DELETE
+      - EXPORT
+      - LOGIN
+      - LOGOUT
+      - PASSWORD_CHANGE
+      - PERMISSION_CHANGE
+      - SIGN
+      - DOWNLOAD
+      type: string
+      description: |-
+        * `CREATE` - Crear
+        * `READ` - Leer
+        * `UPDATE` - Actualizar
+        * `DELETE` - Eliminar
+        * `EXPORT` - Exportar
+        * `LOGIN` - Login
+        * `LOGOUT` - Logout
+        * `PASSWORD_CHANGE` - Cambio de Contraseña
+        * `PERMISSION_CHANGE` - Cambio de Permisos
+        * `SIGN` - Firma Digital
+        * `DOWNLOAD` - Descarga
+    AuditLog:
+      type: object
+      description: Serializer para logs de auditoría
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant:
+          type: string
+          format: uuid
+          nullable: true
+        tenant_name:
+          type: string
+          readOnly: true
+        user:
+          type: string
+          format: uuid
+          nullable: true
+          title: Usuario
+        user_email:
+          type: string
+          title: Email del usuario
+          maxLength: 255
+        user_name:
+          type: string
+          title: Nombre del usuario
+          maxLength: 255
+        action_type:
+          allOf:
+          - $ref: '#/components/schemas/ActionTypeEnum'
+          title: Tipo de acción
+        resource_type:
+          type: string
+          title: Tipo de recurso
+          description: patient, document, user, etc.
+          maxLength: 100
+        resource_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: ID del recurso
+        resource_name:
+          type: string
+          title: Nombre del recurso
+          maxLength: 255
+        ip_address:
+          type: string
+          title: Dirección IP
+        user_agent:
+          type: string
+        request_method:
+          type: string
+          title: Método HTTP
+          maxLength: 10
+        request_path:
+          type: string
+          title: Ruta de la petición
+          maxLength: 500
+        request_body:
+          type: object
+          additionalProperties: {}
+          title: Cuerpo de la petición
+        changes:
+          type: object
+          additionalProperties: {}
+          title: Cambios realizados
+          description: '{"before": {...}, "after": {...}}'
+        response_status:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+          title: Status code de respuesta
+        error_message:
+          type: string
+          title: Mensaje de error
+        session_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: ID de sesión
+        metadata:
+          type: object
+          additionalProperties: {}
+          title: Metadata adicional
+        timestamp:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha y hora
+        log_hash:
+          type: string
+          readOnly: true
+          title: Hash SHA-256
+          description: Hash del log para detectar manipulación
+        is_valid_hash:
+          type: string
+          readOnly: true
+      required:
+      - action_type
+      - id
+      - ip_address
+      - is_valid_hash
+      - log_hash
+      - resource_type
+      - tenant_name
+      - timestamp
+      - user_email
+      - user_name
+    AuditLogList:
+      type: object
+      description: Serializer simplificado para listados
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant_name:
+          type: string
+          readOnly: true
+        user_email:
+          type: string
+          title: Email del usuario
+          maxLength: 255
+        user_name:
+          type: string
+          title: Nombre del usuario
+          maxLength: 255
+        action_type:
+          allOf:
+          - $ref: '#/components/schemas/ActionTypeEnum'
+          title: Tipo de acción
+        resource_type:
+          type: string
+          title: Tipo de recurso
+          description: patient, document, user, etc.
+          maxLength: 100
+        ip_address:
+          type: string
+          title: Dirección IP
+        response_status:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+          title: Status code de respuesta
+        timestamp:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha y hora
+      required:
+      - action_type
+      - id
+      - ip_address
+      - resource_type
+      - tenant_name
+      - timestamp
+      - user_email
+      - user_name
+    AuditLogRequest:
+      type: object
+      description: Serializer para logs de auditoría
+      properties:
+        tenant:
+          type: string
+          format: uuid
+          nullable: true
+        user:
+          type: string
+          format: uuid
+          nullable: true
+          title: Usuario
+        user_email:
+          type: string
+          minLength: 1
+          title: Email del usuario
+          maxLength: 255
+        user_name:
+          type: string
+          minLength: 1
+          title: Nombre del usuario
+          maxLength: 255
+        action_type:
+          allOf:
+          - $ref: '#/components/schemas/ActionTypeEnum'
+          title: Tipo de acción
+        resource_type:
+          type: string
+          minLength: 1
+          title: Tipo de recurso
+          description: patient, document, user, etc.
+          maxLength: 100
+        resource_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: ID del recurso
+        resource_name:
+          type: string
+          title: Nombre del recurso
+          maxLength: 255
+        ip_address:
+          type: string
+          minLength: 1
+          title: Dirección IP
+        user_agent:
+          type: string
+        request_method:
+          type: string
+          title: Método HTTP
+          maxLength: 10
+        request_path:
+          type: string
+          title: Ruta de la petición
+          maxLength: 500
+        request_body:
+          type: object
+          additionalProperties: {}
+          title: Cuerpo de la petición
+        changes:
+          type: object
+          additionalProperties: {}
+          title: Cambios realizados
+          description: '{"before": {...}, "after": {...}}'
+        response_status:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+          title: Status code de respuesta
+        error_message:
+          type: string
+          title: Mensaje de error
+        session_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: ID de sesión
+        metadata:
+          type: object
+          additionalProperties: {}
+          title: Metadata adicional
+      required:
+      - action_type
+      - ip_address
+      - resource_type
+      - user_email
+      - user_name
+    BackupJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant_name:
+          type: string
+          readOnly: true
+        size_mb:
+          type: string
+          readOnly: true
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        backup_type:
+          $ref: '#/components/schemas/BackupTypeEnum'
+        backup_scope:
+          $ref: '#/components/schemas/BackupScopeEnum'
+        status:
+          $ref: '#/components/schemas/Status4b0Enum'
+        storage_location:
+          type: string
+          maxLength: 500
+        backup_size_bytes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        includes_database:
+          type: boolean
+        includes_files:
+          type: boolean
+        includes_audit_logs:
+          type: boolean
+        is_encrypted:
+          type: boolean
+        encryption_key_id:
+          type: string
+          maxLength: 255
+        scheduled:
+          type: boolean
+        schedule_cron:
+          type: string
+          maxLength: 100
+        can_restore:
+          type: boolean
+        retention_until:
+          type: string
+          format: date
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+        retry_count:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        metadata:
+          type: object
+          additionalProperties: {}
+        tenant:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - created_at
+      - id
+      - size_mb
+      - tenant_name
+      - updated_at
+    BackupJobRequest:
+      type: object
+      properties:
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+        backup_type:
+          $ref: '#/components/schemas/BackupTypeEnum'
+        backup_scope:
+          $ref: '#/components/schemas/BackupScopeEnum'
+        status:
+          $ref: '#/components/schemas/Status4b0Enum'
+        storage_location:
+          type: string
+          maxLength: 500
+        backup_size_bytes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        includes_database:
+          type: boolean
+        includes_files:
+          type: boolean
+        includes_audit_logs:
+          type: boolean
+        is_encrypted:
+          type: boolean
+        encryption_key_id:
+          type: string
+          maxLength: 255
+        scheduled:
+          type: boolean
+        schedule_cron:
+          type: string
+          maxLength: 100
+        can_restore:
+          type: boolean
+        retention_until:
+          type: string
+          format: date
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+        retry_count:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        metadata:
+          type: object
+          additionalProperties: {}
+        tenant:
+          type: string
+          format: uuid
+          nullable: true
+    BackupScopeEnum:
+      enum:
+      - tenant
+      - system
+      type: string
+      description: |-
+        * `tenant` - Por Tenant
+        * `system` - Sistema Completo
+    BackupTypeEnum:
+      enum:
+      - full
+      - incremental
+      - differential
+      type: string
+      description: |-
+        * `full` - Completo
+        * `incremental` - Incremental
+        * `differential` - Diferencial
+    BlankEnum:
+      enum:
+      - ''
+    ClinicalDocument:
+      type: object
+      description: Serializer completo para documentos clínicos
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        clinical_record:
+          type: string
+          format: uuid
+          title: Historia clínica
+        clinical_record_info:
+          type: string
+          readOnly: true
+        patient_name:
+          type: string
+          readOnly: true
+        document_type:
+          allOf:
+          - $ref: '#/components/schemas/DocumentTypeEnum'
+          title: Tipo de documento
+        title:
+          type: string
+          title: Título
+          maxLength: 255
+        description:
+          type: string
+          title: Descripción
+        document_date:
+          type: string
+          format: date-time
+          title: Fecha del documento
+          description: Fecha del evento médico
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        doctor_name:
+          type: string
+          title: Nombre del médico
+          maxLength: 255
+        doctor_license:
+          type: string
+          title: Matrícula del médico
+          maxLength: 100
+        content:
+          type: object
+          additionalProperties: {}
+          title: Contenido estructurado
+          description: JSON con el contenido del documento
+        file_path:
+          type: string
+          title: Ruta del archivo en S3
+          maxLength: 500
+        file_name:
+          type: string
+          title: Nombre del archivo
+          maxLength: 255
+        file_size_bytes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+          title: Tamaño del archivo (bytes)
+        mime_type:
+          type: string
+          title: Tipo MIME
+          maxLength: 100
+        file_hash:
+          type: string
+          readOnly: true
+          title: Hash SHA-256 del archivo
+          description: Para verificar integridad
+        file_url:
+          type: string
+          readOnly: true
+        ocr_text:
+          type: string
+          readOnly: true
+          title: Texto extraído por OCR
+        ocr_confidence:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+          title: Confianza del OCR (0-100)
+        ocr_processed:
+          type: boolean
+          readOnly: true
+          title: OCR procesado
+        is_signed:
+          type: boolean
+          readOnly: true
+          title: Firmado digitalmente
+        signed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Fecha de firma
+        signed_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          title: Firmado por
+        signed_by_name:
+          type: string
+          readOnly: true
+        digital_signature:
+          type: string
+          readOnly: true
+          title: Firma digital
+        is_locked:
+          type: boolean
+          title: Bloqueado
+          description: Los documentos bloqueados no pueden editarse
+        tags:
+          type: object
+          additionalProperties: {}
+          title: Etiquetas
+          description: '["laboratorio", "urgente"]'
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          title: Creado por
+        created_by_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - clinical_record
+      - clinical_record_info
+      - created_at
+      - created_by
+      - created_by_name
+      - digital_signature
+      - document_date
+      - document_type
+      - file_hash
+      - file_url
+      - id
+      - is_signed
+      - ocr_confidence
+      - ocr_processed
+      - ocr_text
+      - patient_name
+      - signed_at
+      - signed_by
+      - signed_by_name
+      - title
+      - updated_at
+    ClinicalDocumentList:
+      type: object
+      description: Serializer simplificado para listados
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        document_type:
+          allOf:
+          - $ref: '#/components/schemas/DocumentTypeEnum'
+          title: Tipo de documento
+        title:
+          type: string
+          title: Título
+          maxLength: 255
+        document_date:
+          type: string
+          format: date-time
+          title: Fecha del documento
+          description: Fecha del evento médico
+        patient_name:
+          type: string
+          readOnly: true
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        doctor_name:
+          type: string
+          title: Nombre del médico
+          maxLength: 255
+        is_signed:
+          type: boolean
+          title: Firmado digitalmente
+        is_locked:
+          type: boolean
+          title: Bloqueado
+          description: Los documentos bloqueados no pueden editarse
+        file_name:
+          type: string
+          title: Nombre del archivo
+          maxLength: 255
+        created_by_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - created_by_name
+      - document_date
+      - document_type
+      - id
+      - patient_name
+      - title
+    ClinicalDocumentRequest:
+      type: object
+      description: Serializer completo para documentos clínicos
+      properties:
+        clinical_record:
+          type: string
+          format: uuid
+          title: Historia clínica
+        document_type:
+          allOf:
+          - $ref: '#/components/schemas/DocumentTypeEnum'
+          title: Tipo de documento
+        title:
+          type: string
+          minLength: 1
+          title: Título
+          maxLength: 255
+        description:
+          type: string
+          title: Descripción
+        document_date:
+          type: string
+          format: date-time
+          title: Fecha del documento
+          description: Fecha del evento médico
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        doctor_name:
+          type: string
+          title: Nombre del médico
+          maxLength: 255
+        doctor_license:
+          type: string
+          title: Matrícula del médico
+          maxLength: 100
+        content:
+          type: object
+          additionalProperties: {}
+          title: Contenido estructurado
+          description: JSON con el contenido del documento
+        file_path:
+          type: string
+          title: Ruta del archivo en S3
+          maxLength: 500
+        file_name:
+          type: string
+          title: Nombre del archivo
+          maxLength: 255
+        file_size_bytes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+          title: Tamaño del archivo (bytes)
+        mime_type:
+          type: string
+          title: Tipo MIME
+          maxLength: 100
+        is_locked:
+          type: boolean
+          title: Bloqueado
+          description: Los documentos bloqueados no pueden editarse
+        tags:
+          type: object
+          additionalProperties: {}
+          title: Etiquetas
+          description: '["laboratorio", "urgente"]'
+      required:
+      - clinical_record
+      - document_date
+      - document_type
+      - title
+    ClinicalDocumentUpload:
+      type: object
+      description: Serializer para upload de documentos
+      properties:
+        clinical_record:
+          type: string
+          format: uuid
+          title: Historia clínica
+        document_type:
+          allOf:
+          - $ref: '#/components/schemas/DocumentTypeEnum'
+          title: Tipo de documento
+        title:
+          type: string
+          title: Título
+          maxLength: 255
+        description:
+          type: string
+          title: Descripción
+        document_date:
+          type: string
+          format: date-time
+          title: Fecha del documento
+          description: Fecha del evento médico
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        doctor_name:
+          type: string
+          title: Nombre del médico
+          maxLength: 255
+        doctor_license:
+          type: string
+          title: Matrícula del médico
+          maxLength: 100
+        content:
+          type: object
+          additionalProperties: {}
+          title: Contenido estructurado
+          description: JSON con el contenido del documento
+        tags:
+          type: object
+          additionalProperties: {}
+          title: Etiquetas
+          description: '["laboratorio", "urgente"]'
+      required:
+      - clinical_record
+      - document_date
+      - document_type
+      - title
+    ClinicalDocumentUploadRequest:
+      type: object
+      description: Serializer para upload de documentos
+      properties:
+        clinical_record:
+          type: string
+          format: uuid
+          title: Historia clínica
+        document_type:
+          allOf:
+          - $ref: '#/components/schemas/DocumentTypeEnum'
+          title: Tipo de documento
+        title:
+          type: string
+          minLength: 1
+          title: Título
+          maxLength: 255
+        description:
+          type: string
+          title: Descripción
+        document_date:
+          type: string
+          format: date-time
+          title: Fecha del documento
+          description: Fecha del evento médico
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        doctor_name:
+          type: string
+          title: Nombre del médico
+          maxLength: 255
+        doctor_license:
+          type: string
+          title: Matrícula del médico
+          maxLength: 100
+        content:
+          type: object
+          additionalProperties: {}
+          title: Contenido estructurado
+          description: JSON con el contenido del documento
+        tags:
+          type: object
+          additionalProperties: {}
+          title: Etiquetas
+          description: '["laboratorio", "urgente"]'
+        file:
+          type: string
+          format: binary
+          writeOnly: true
+      required:
+      - clinical_record
+      - document_date
+      - document_type
+      - file
+      - title
+    ClinicalRecord:
+      type: object
+      description: Serializer completo para historias clínicas
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        patient:
+          type: string
+          format: uuid
+          title: Paciente
+        patient_info:
+          allOf:
+          - $ref: '#/components/schemas/PatientList'
+          readOnly: true
+        record_number:
+          type: string
+          readOnly: true
+          title: Número de expediente
+          description: Se genera automáticamente
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ClinicalRecordStatusEnum'
+          title: Estado
+        blood_type:
+          type: string
+          title: Tipo de sangre
+          maxLength: 10
+        allergies:
+          type: object
+          additionalProperties: {}
+          title: Alergias
+          description: '[{"allergen": "...", "severity": "...", "reaction": "..."}]'
+        chronic_conditions:
+          type: object
+          additionalProperties: {}
+          title: Condiciones crónicas
+          description: '["Diabetes tipo 2", "Hipertensión"]'
+        medications:
+          type: object
+          additionalProperties: {}
+          title: Medicamentos actuales
+          description: '[{"name": "...", "dose": "...", "frequency": "..."}]'
+        family_history:
+          type: string
+          title: Antecedentes familiares
+        social_history:
+          type: string
+          title: Antecedentes sociales
+        documents_count:
+          type: string
+          readOnly: true
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          title: Creado por
+        created_by_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - created_by
+      - created_by_name
+      - documents_count
+      - id
+      - patient
+      - patient_info
+      - record_number
+      - updated_at
+    ClinicalRecordCreate:
+      type: object
+      description: Serializer para crear historias clínicas
+      properties:
+        patient:
+          type: string
+          format: uuid
+          title: Paciente
+        blood_type:
+          type: string
+          title: Tipo de sangre
+          maxLength: 10
+        allergies:
+          type: object
+          additionalProperties: {}
+          title: Alergias
+          description: '[{"allergen": "...", "severity": "...", "reaction": "..."}]'
+        chronic_conditions:
+          type: object
+          additionalProperties: {}
+          title: Condiciones crónicas
+          description: '["Diabetes tipo 2", "Hipertensión"]'
+        medications:
+          type: object
+          additionalProperties: {}
+          title: Medicamentos actuales
+          description: '[{"name": "...", "dose": "...", "frequency": "..."}]'
+        family_history:
+          type: string
+          title: Antecedentes familiares
+        social_history:
+          type: string
+          title: Antecedentes sociales
+      required:
+      - patient
+    ClinicalRecordCreateRequest:
+      type: object
+      description: Serializer para crear historias clínicas
+      properties:
+        patient:
+          type: string
+          format: uuid
+          title: Paciente
+        blood_type:
+          type: string
+          title: Tipo de sangre
+          maxLength: 10
+        allergies:
+          type: object
+          additionalProperties: {}
+          title: Alergias
+          description: '[{"allergen": "...", "severity": "...", "reaction": "..."}]'
+        chronic_conditions:
+          type: object
+          additionalProperties: {}
+          title: Condiciones crónicas
+          description: '["Diabetes tipo 2", "Hipertensión"]'
+        medications:
+          type: object
+          additionalProperties: {}
+          title: Medicamentos actuales
+          description: '[{"name": "...", "dose": "...", "frequency": "..."}]'
+        family_history:
+          type: string
+          title: Antecedentes familiares
+        social_history:
+          type: string
+          title: Antecedentes sociales
+      required:
+      - patient
+    ClinicalRecordRequest:
+      type: object
+      description: Serializer completo para historias clínicas
+      properties:
+        patient:
+          type: string
+          format: uuid
+          title: Paciente
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ClinicalRecordStatusEnum'
+          title: Estado
+        blood_type:
+          type: string
+          title: Tipo de sangre
+          maxLength: 10
+        allergies:
+          type: object
+          additionalProperties: {}
+          title: Alergias
+          description: '[{"allergen": "...", "severity": "...", "reaction": "..."}]'
+        chronic_conditions:
+          type: object
+          additionalProperties: {}
+          title: Condiciones crónicas
+          description: '["Diabetes tipo 2", "Hipertensión"]'
+        medications:
+          type: object
+          additionalProperties: {}
+          title: Medicamentos actuales
+          description: '[{"name": "...", "dose": "...", "frequency": "..."}]'
+        family_history:
+          type: string
+          title: Antecedentes familiares
+        social_history:
+          type: string
+          title: Antecedentes sociales
+      required:
+      - patient
+    ClinicalRecordStatusEnum:
+      enum:
+      - active
+      - archived
+      - closed
+      type: string
+      description: |-
+        * `active` - Activa
+        * `archived` - Archivada
+        * `closed` - Cerrada
+    CustomTokenObtainPairRequest:
+      type: object
+      description: Serializer personalizado para JWT con datos del usuario
+      properties:
+        email:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    DocumentAccessLog:
+      type: object
+      description: Serializer para logs de acceso
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        document:
+          type: string
+          format: uuid
+          title: Documento
+        document_title:
+          type: string
+          readOnly: true
+        user:
+          type: string
+          format: uuid
+          nullable: true
+          title: Usuario
+        user_name:
+          type: string
+          title: Nombre del usuario
+          maxLength: 255
+        user_email:
+          type: string
+          title: Email del usuario
+          maxLength: 255
+        access_type:
+          allOf:
+          - $ref: '#/components/schemas/AccessTypeEnum'
+          title: Tipo de acceso
+        ip_address:
+          type: string
+          nullable: true
+          title: Dirección IP
+        user_agent:
+          type: string
+        access_reason:
+          type: string
+          title: Razón del acceso
+          description: Justificación opcional
+        accessed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de acceso
+      required:
+      - access_type
+      - accessed_at
+      - document
+      - document_title
+      - id
+      - user_email
+      - user_name
+    DocumentTypeEnum:
+      enum:
+      - consultation
+      - lab_result
+      - imaging_report
+      - prescription
+      - surgical_note
+      - discharge_summary
+      - consent_form
+      - progress_note
+      - referral
+      type: string
+      description: |-
+        * `consultation` - Consulta
+        * `lab_result` - Resultado de Laboratorio
+        * `imaging_report` - Informe de Imagen
+        * `prescription` - Receta
+        * `surgical_note` - Nota Quirúrgica
+        * `discharge_summary` - Resumen de Alta
+        * `consent_form` - Consentimiento Informado
+        * `progress_note` - Nota de Evolución
+        * `referral` - Referencia
+    GenderEnum:
+      enum:
+      - M
+      - F
+      - O
+      type: string
+      description: |-
+        * `M` - Masculino
+        * `F` - Femenino
+        * `O` - Otro
+    IdentityDocumentTypeEnum:
+      enum:
+      - CI
+      - Pasaporte
+      - DNI
+      - RUT
+      type: string
+      description: |-
+        * `CI` - Cédula de Identidad
+        * `Pasaporte` - Pasaporte
+        * `DNI` - DNI
+        * `RUT` - RUT
+    ImageTypeEnum:
+      enum:
+      - xray
+      - ct_scan
+      - mri
+      - ultrasound
+      - mammography
+      - pet_scan
+      type: string
+      description: |-
+        * `xray` - Rayos X
+        * `ct_scan` - Tomografía
+        * `mri` - Resonancia Magnética
+        * `ultrasound` - Ecografía
+        * `mammography` - Mamografía
+        * `pet_scan` - PET Scan
+    LanguageEnum:
+      enum:
+      - es
+      - en
+      type: string
+      description: |-
+        * `es` - Español
+        * `en` - English
+    MedicalImage:
+      type: object
+      description: Serializer para imágenes médicas
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        clinical_record:
+          type: string
+          format: uuid
+          title: Historia clínica
+        clinical_record_info:
+          type: string
+          readOnly: true
+        document:
+          type: string
+          format: uuid
+          nullable: true
+          title: Documento asociado
+        image_type:
+          allOf:
+          - $ref: '#/components/schemas/ImageTypeEnum'
+          title: Tipo de imagen
+        title:
+          type: string
+          title: Título
+          maxLength: 255
+        study_date:
+          type: string
+          format: date-time
+          title: Fecha del estudio
+        modality:
+          type: string
+          title: Modalidad DICOM
+          description: CR, CT, MR, US, etc.
+          maxLength: 50
+        body_part:
+          type: string
+          title: Parte del cuerpo
+          maxLength: 100
+        file_path:
+          type: string
+          title: Ruta del archivo en S3
+          maxLength: 500
+        file_name:
+          type: string
+          title: Nombre del archivo
+          maxLength: 255
+        file_size_bytes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+          title: Tamaño del archivo
+        file_url:
+          type: string
+          readOnly: true
+        dicom_metadata:
+          type: object
+          additionalProperties: {}
+          title: Metadatos DICOM
+        enhanced_image_path:
+          type: string
+          readOnly: true
+          title: Ruta de imagen mejorada
+        enhancement_applied:
+          type: boolean
+          readOnly: true
+          title: Mejora aplicada
+        enhancement_params:
+          type: object
+          additionalProperties: {}
+          title: Parámetros de mejora
+        enhanced_url:
+          type: string
+          readOnly: true
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          title: Creado por
+        created_by_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - clinical_record
+      - clinical_record_info
+      - created_at
+      - created_by
+      - created_by_name
+      - enhanced_image_path
+      - enhanced_url
+      - enhancement_applied
+      - file_name
+      - file_path
+      - file_url
+      - id
+      - image_type
+      - study_date
+      - title
+    MedicalImageRequest:
+      type: object
+      description: Serializer para imágenes médicas
+      properties:
+        clinical_record:
+          type: string
+          format: uuid
+          title: Historia clínica
+        document:
+          type: string
+          format: uuid
+          nullable: true
+          title: Documento asociado
+        image_type:
+          allOf:
+          - $ref: '#/components/schemas/ImageTypeEnum'
+          title: Tipo de imagen
+        title:
+          type: string
+          minLength: 1
+          title: Título
+          maxLength: 255
+        study_date:
+          type: string
+          format: date-time
+          title: Fecha del estudio
+        modality:
+          type: string
+          title: Modalidad DICOM
+          description: CR, CT, MR, US, etc.
+          maxLength: 50
+        body_part:
+          type: string
+          title: Parte del cuerpo
+          maxLength: 100
+        file_path:
+          type: string
+          minLength: 1
+          title: Ruta del archivo en S3
+          maxLength: 500
+        file_name:
+          type: string
+          minLength: 1
+          title: Nombre del archivo
+          maxLength: 255
+        file_size_bytes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+          title: Tamaño del archivo
+        dicom_metadata:
+          type: object
+          additionalProperties: {}
+          title: Metadatos DICOM
+        enhancement_params:
+          type: object
+          additionalProperties: {}
+          title: Parámetros de mejora
+      required:
+      - clinical_record
+      - file_name
+      - file_path
+      - image_type
+      - study_date
+      - title
+    PaginatedAuditLogListList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogList'
+    PaginatedBackupJobList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BackupJob'
+    PaginatedClinicalDocumentListList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClinicalDocumentList'
+    PaginatedClinicalRecordList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClinicalRecord'
+    PaginatedDocumentAccessLogList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentAccessLog'
+    PaginatedMedicalImageList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MedicalImage'
+    PaginatedPatientListList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PatientList'
+    PaginatedPermissionList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+    PaginatedReportExecutionList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportExecution'
+    PaginatedReportTemplateList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportTemplate'
+    PaginatedRoleList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+    PaginatedTenantList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tenant'
+    PaginatedUserList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    PatchedClinicalDocumentRequest:
+      type: object
+      description: Serializer completo para documentos clínicos
+      properties:
+        clinical_record:
+          type: string
+          format: uuid
+          title: Historia clínica
+        document_type:
+          allOf:
+          - $ref: '#/components/schemas/DocumentTypeEnum'
+          title: Tipo de documento
+        title:
+          type: string
+          minLength: 1
+          title: Título
+          maxLength: 255
+        description:
+          type: string
+          title: Descripción
+        document_date:
+          type: string
+          format: date-time
+          title: Fecha del documento
+          description: Fecha del evento médico
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        doctor_name:
+          type: string
+          title: Nombre del médico
+          maxLength: 255
+        doctor_license:
+          type: string
+          title: Matrícula del médico
+          maxLength: 100
+        content:
+          type: object
+          additionalProperties: {}
+          title: Contenido estructurado
+          description: JSON con el contenido del documento
+        file_path:
+          type: string
+          title: Ruta del archivo en S3
+          maxLength: 500
+        file_name:
+          type: string
+          title: Nombre del archivo
+          maxLength: 255
+        file_size_bytes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+          title: Tamaño del archivo (bytes)
+        mime_type:
+          type: string
+          title: Tipo MIME
+          maxLength: 100
+        is_locked:
+          type: boolean
+          title: Bloqueado
+          description: Los documentos bloqueados no pueden editarse
+        tags:
+          type: object
+          additionalProperties: {}
+          title: Etiquetas
+          description: '["laboratorio", "urgente"]'
+    PatchedClinicalRecordRequest:
+      type: object
+      description: Serializer completo para historias clínicas
+      properties:
+        patient:
+          type: string
+          format: uuid
+          title: Paciente
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ClinicalRecordStatusEnum'
+          title: Estado
+        blood_type:
+          type: string
+          title: Tipo de sangre
+          maxLength: 10
+        allergies:
+          type: object
+          additionalProperties: {}
+          title: Alergias
+          description: '[{"allergen": "...", "severity": "...", "reaction": "..."}]'
+        chronic_conditions:
+          type: object
+          additionalProperties: {}
+          title: Condiciones crónicas
+          description: '["Diabetes tipo 2", "Hipertensión"]'
+        medications:
+          type: object
+          additionalProperties: {}
+          title: Medicamentos actuales
+          description: '[{"name": "...", "dose": "...", "frequency": "..."}]'
+        family_history:
+          type: string
+          title: Antecedentes familiares
+        social_history:
+          type: string
+          title: Antecedentes sociales
+    PatchedMedicalImageRequest:
+      type: object
+      description: Serializer para imágenes médicas
+      properties:
+        clinical_record:
+          type: string
+          format: uuid
+          title: Historia clínica
+        document:
+          type: string
+          format: uuid
+          nullable: true
+          title: Documento asociado
+        image_type:
+          allOf:
+          - $ref: '#/components/schemas/ImageTypeEnum'
+          title: Tipo de imagen
+        title:
+          type: string
+          minLength: 1
+          title: Título
+          maxLength: 255
+        study_date:
+          type: string
+          format: date-time
+          title: Fecha del estudio
+        modality:
+          type: string
+          title: Modalidad DICOM
+          description: CR, CT, MR, US, etc.
+          maxLength: 50
+        body_part:
+          type: string
+          title: Parte del cuerpo
+          maxLength: 100
+        file_path:
+          type: string
+          minLength: 1
+          title: Ruta del archivo en S3
+          maxLength: 500
+        file_name:
+          type: string
+          minLength: 1
+          title: Nombre del archivo
+          maxLength: 255
+        file_size_bytes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+          title: Tamaño del archivo
+        dicom_metadata:
+          type: object
+          additionalProperties: {}
+          title: Metadatos DICOM
+        enhancement_params:
+          type: object
+          additionalProperties: {}
+          title: Parámetros de mejora
+    PatchedPatientRequest:
+      type: object
+      description: Serializer completo para pacientes
+      properties:
+        identity_document_type:
+          allOf:
+          - $ref: '#/components/schemas/IdentityDocumentTypeEnum'
+          title: Tipo de documento
+        identity_document:
+          type: string
+          minLength: 1
+          title: Número de documento
+          maxLength: 100
+        first_name:
+          type: string
+          minLength: 1
+          title: Nombres
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          title: Apellidos
+          maxLength: 100
+        date_of_birth:
+          type: string
+          format: date
+          title: Fecha de nacimiento
+        gender:
+          allOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          title: Género
+        phone:
+          type: string
+          title: Teléfono
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          title: Correo electrónico
+          maxLength: 254
+        address:
+          type: string
+          title: Dirección
+        city:
+          type: string
+          title: Ciudad
+          maxLength: 100
+        emergency_contact:
+          type: object
+          additionalProperties: {}
+          title: Contacto de emergencia
+          description: '{"name": "...", "relationship": "...", "phone": "..."}'
+    PatchedReportTemplateRequest:
+      type: object
+      properties:
+        output_formats:
+          type: object
+          additionalProperties: {}
+        allowed_roles:
+          type: object
+          additionalProperties: {}
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: Fecha de eliminación
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        report_type:
+          $ref: '#/components/schemas/ReportTypeEnum'
+        category:
+          type: string
+          maxLength: 100
+        query_template:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: {}
+        chart_config:
+          type: object
+          additionalProperties: {}
+        is_public:
+          type: boolean
+    PatchedRoleRequest:
+      type: object
+      description: Serializer para roles
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Nombre
+          maxLength: 100
+        description:
+          type: string
+          title: Descripción
+        permission_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          writeOnly: true
+    PatchedUserRequest:
+      type: object
+      description: Serializer completo para usuarios
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          title: Correo electrónico
+          maxLength: 254
+        username:
+          type: string
+          nullable: true
+          title: Nombre de usuario
+          maxLength: 150
+        first_name:
+          type: string
+          minLength: 1
+          title: Nombres
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          title: Apellidos
+          maxLength: 100
+        phone:
+          type: string
+          title: Teléfono
+          pattern: ^\+?1?\d{9,15}$
+          maxLength: 20
+        gender:
+          title: Género
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+          title: Fecha de nacimiento
+        avatar:
+          type: string
+          format: binary
+          nullable: true
+        bio:
+          type: string
+          title: Biografía
+        professional_id:
+          type: string
+          title: Matrícula profesional
+          maxLength: 50
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        role:
+          type: string
+          format: uuid
+          nullable: true
+          title: Rol
+        is_active:
+          type: boolean
+          title: Activo
+        two_factor_enabled:
+          type: boolean
+          title: 2FA habilitado
+    Patient:
+      type: object
+      description: Serializer completo para pacientes
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        identity_document_type:
+          allOf:
+          - $ref: '#/components/schemas/IdentityDocumentTypeEnum'
+          title: Tipo de documento
+        identity_document:
+          type: string
+          title: Número de documento
+          maxLength: 100
+        first_name:
+          type: string
+          title: Nombres
+          maxLength: 100
+        last_name:
+          type: string
+          title: Apellidos
+          maxLength: 100
+        full_name:
+          type: string
+          readOnly: true
+        date_of_birth:
+          type: string
+          format: date
+          title: Fecha de nacimiento
+        age:
+          type: integer
+          readOnly: true
+        gender:
+          allOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          title: Género
+        phone:
+          type: string
+          title: Teléfono
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          title: Correo electrónico
+          maxLength: 254
+        address:
+          type: string
+          title: Dirección
+        city:
+          type: string
+          title: Ciudad
+          maxLength: 100
+        emergency_contact:
+          type: object
+          additionalProperties: {}
+          title: Contacto de emergencia
+          description: '{"name": "...", "relationship": "...", "phone": "..."}'
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          title: Creado por
+        created_by_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - age
+      - created_at
+      - created_by
+      - created_by_name
+      - date_of_birth
+      - first_name
+      - full_name
+      - gender
+      - id
+      - identity_document
+      - last_name
+      - updated_at
+    PatientList:
+      type: object
+      description: Serializer simplificado para listados
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        identity_document:
+          type: string
+          title: Número de documento
+          maxLength: 100
+        full_name:
+          type: string
+          readOnly: true
+        age:
+          type: integer
+          readOnly: true
+        gender:
+          allOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          title: Género
+        phone:
+          type: string
+          title: Teléfono
+          maxLength: 50
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - age
+      - created_at
+      - full_name
+      - gender
+      - id
+      - identity_document
+    PatientListRequest:
+      type: object
+      description: Serializer simplificado para listados
+      properties:
+        identity_document:
+          type: string
+          minLength: 1
+          title: Número de documento
+          maxLength: 100
+        gender:
+          allOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          title: Género
+        phone:
+          type: string
+          title: Teléfono
+          maxLength: 50
+      required:
+      - gender
+      - identity_document
+    PatientRequest:
+      type: object
+      description: Serializer completo para pacientes
+      properties:
+        identity_document_type:
+          allOf:
+          - $ref: '#/components/schemas/IdentityDocumentTypeEnum'
+          title: Tipo de documento
+        identity_document:
+          type: string
+          minLength: 1
+          title: Número de documento
+          maxLength: 100
+        first_name:
+          type: string
+          minLength: 1
+          title: Nombres
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          title: Apellidos
+          maxLength: 100
+        date_of_birth:
+          type: string
+          format: date
+          title: Fecha de nacimiento
+        gender:
+          allOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          title: Género
+        phone:
+          type: string
+          title: Teléfono
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          title: Correo electrónico
+          maxLength: 254
+        address:
+          type: string
+          title: Dirección
+        city:
+          type: string
+          title: Ciudad
+          maxLength: 100
+        emergency_contact:
+          type: object
+          additionalProperties: {}
+          title: Contacto de emergencia
+          description: '{"name": "...", "relationship": "...", "phone": "..."}'
+      required:
+      - date_of_birth
+      - first_name
+      - gender
+      - identity_document
+      - last_name
+    Permission:
+      type: object
+      description: Serializer para permisos
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 100
+        code:
+          type: string
+          title: Código
+          description: 'Ej: patient.create, document.read'
+          maxLength: 100
+        description:
+          type: string
+          title: Descripción
+        resource:
+          allOf:
+          - $ref: '#/components/schemas/ResourceEnum'
+          title: Recurso
+        action:
+          allOf:
+          - $ref: '#/components/schemas/ActionEnum'
+          title: Acción
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - action
+      - code
+      - created_at
+      - id
+      - name
+      - resource
+    PermissionRequest:
+      type: object
+      description: Serializer para permisos
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Nombre
+          maxLength: 100
+        code:
+          type: string
+          minLength: 1
+          title: Código
+          description: 'Ej: patient.create, document.read'
+          maxLength: 100
+        description:
+          type: string
+          title: Descripción
+        resource:
+          allOf:
+          - $ref: '#/components/schemas/ResourceEnum'
+          title: Recurso
+        action:
+          allOf:
+          - $ref: '#/components/schemas/ActionEnum'
+          title: Acción
+      required:
+      - action
+      - code
+      - name
+      - resource
+    Register:
+      type: object
+      description: Serializer para registro de nuevo tenant + usuario admin
+      properties:
+        tenant_name:
+          type: string
+          maxLength: 200
+        tenant_subdomain:
+          type: string
+          maxLength: 100
+          pattern: ^[-a-zA-Z0-9_]+$
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 20
+      required:
+      - email
+      - first_name
+      - last_name
+      - tenant_name
+      - tenant_subdomain
+    RegisterRequest:
+      type: object
+      description: Serializer para registro de nuevo tenant + usuario admin
+      properties:
+        tenant_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        tenant_subdomain:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: ^[-a-zA-Z0-9_]+$
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 1
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 20
+      required:
+      - email
+      - first_name
+      - last_name
+      - password
+      - password_confirm
+      - tenant_name
+      - tenant_subdomain
+    ReportExecution:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        template_name:
+          type: string
+          readOnly: true
+        executed_by_name:
+          type: string
+          readOnly: true
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: Fecha de eliminación
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        parameters_used:
+          type: object
+          additionalProperties: {}
+        output_format:
+          type: string
+          maxLength: 50
+        file_path:
+          type: string
+          maxLength: 500
+        file_size_bytes:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        execution_time_ms:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        rows_returned:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        status:
+          $ref: '#/components/schemas/Status4b0Enum'
+        error_message:
+          type: string
+        tenant:
+          type: string
+          format: uuid
+          readOnly: true
+        template:
+          type: string
+          format: uuid
+          nullable: true
+        executed_by:
+          type: string
+          format: uuid
+          readOnly: true
+      required:
+      - created_at
+      - executed_by
+      - executed_by_name
+      - id
+      - output_format
+      - template_name
+      - tenant
+      - updated_at
+    ReportTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        output_formats:
+          type: object
+          additionalProperties: {}
+        allowed_roles:
+          type: object
+          additionalProperties: {}
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: Fecha de eliminación
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        report_type:
+          $ref: '#/components/schemas/ReportTypeEnum'
+        category:
+          type: string
+          maxLength: 100
+        query_template:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: {}
+        chart_config:
+          type: object
+          additionalProperties: {}
+        is_public:
+          type: boolean
+        tenant:
+          type: string
+          format: uuid
+          readOnly: true
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+      required:
+      - created_at
+      - created_by
+      - id
+      - name
+      - report_type
+      - tenant
+      - updated_at
+    ReportTemplateRequest:
+      type: object
+      properties:
+        output_formats:
+          type: object
+          additionalProperties: {}
+        allowed_roles:
+          type: object
+          additionalProperties: {}
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          title: Fecha de eliminación
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        report_type:
+          $ref: '#/components/schemas/ReportTypeEnum'
+        category:
+          type: string
+          maxLength: 100
+        query_template:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: {}
+        chart_config:
+          type: object
+          additionalProperties: {}
+        is_public:
+          type: boolean
+      required:
+      - name
+      - report_type
+    ReportTypeEnum:
+      enum:
+      - documents_by_type
+      - patients_summary
+      - activity_log
+      - usage_statistics
+      type: string
+      description: |-
+        * `documents_by_type` - Documentos por Tipo
+        * `patients_summary` - Resumen de Pacientes
+        * `activity_log` - Registro de Actividad
+        * `usage_statistics` - Estadísticas de Uso
+    ResourceEnum:
+      enum:
+      - patient
+      - clinical_record
+      - document
+      - user
+      - role
+      - report
+      - audit
+      type: string
+      description: |-
+        * `patient` - Pacientes
+        * `clinical_record` - Historias Clínicas
+        * `document` - Documentos
+        * `user` - Usuarios
+        * `role` - Roles
+        * `report` - Reportes
+        * `audit` - Auditoría
+    Role:
+      type: object
+      description: Serializer para roles
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 100
+        description:
+          type: string
+          title: Descripción
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+          readOnly: true
+        is_system_role:
+          type: boolean
+          readOnly: true
+          title: Rol del sistema
+          description: Los roles del sistema no pueden ser eliminados
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - is_system_role
+      - name
+      - permissions
+    RoleRequest:
+      type: object
+      description: Serializer para roles
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Nombre
+          maxLength: 100
+        description:
+          type: string
+          title: Descripción
+        permission_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          writeOnly: true
+      required:
+      - name
+    Status4b0Enum:
+      enum:
+      - pending
+      - processing
+      - completed
+      - failed
+      type: string
+      description: |-
+        * `pending` - Pendiente
+        * `processing` - Procesando
+        * `completed` - Completado
+        * `failed` - Fallido
+    SubscriptionPlanEnum:
+      enum:
+      - basic
+      - pro
+      - enterprise
+      type: string
+      description: |-
+        * `basic` - Basic
+        * `pro` - Pro
+        * `enterprise` - Enterprise
+    SubscriptionStatusEnum:
+      enum:
+      - active
+      - suspended
+      - trial
+      - cancelled
+      type: string
+      description: |-
+        * `active` - Activo
+        * `suspended` - Suspendido
+        * `trial` - Prueba
+        * `cancelled` - Cancelado
+    Tenant:
+      type: object
+      description: Serializer para tenants
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          title: Nombre de la institución
+          maxLength: 200
+        slug:
+          type: string
+          readOnly: true
+          title: Slug único
+          pattern: ^[-a-zA-Z0-9_]+$
+        subdomain:
+          type: string
+          title: Subdominio
+          maxLength: 100
+        subscription_plan:
+          allOf:
+          - $ref: '#/components/schemas/SubscriptionPlanEnum'
+          title: Plan de suscripción
+        subscription_status:
+          allOf:
+          - $ref: '#/components/schemas/SubscriptionStatusEnum'
+          title: Estado de suscripción
+        subscription_start:
+          type: string
+          format: date-time
+          nullable: true
+          title: Inicio de suscripción
+        subscription_end:
+          type: string
+          format: date-time
+          nullable: true
+          title: Fin de suscripción
+        email:
+          type: string
+          format: email
+          title: Email de contacto
+          maxLength: 254
+        phone:
+          type: string
+          title: Teléfono
+          maxLength: 20
+        address:
+          type: string
+          title: Dirección
+        max_users:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Máximo de usuarios
+        max_storage_gb:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Máximo de almacenamiento (GB)
+        users_count:
+          type: string
+          readOnly: true
+        is_active_status:
+          type: boolean
+          readOnly: true
+        settings:
+          type: object
+          additionalProperties: {}
+          title: Configuraciones personalizadas
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - email
+      - id
+      - is_active_status
+      - name
+      - slug
+      - subdomain
+      - updated_at
+      - users_count
+    ThemeEnum:
+      enum:
+      - light
+      - dark
+      - auto
+      type: string
+      description: |-
+        * `light` - Claro
+        * `dark` - Oscuro
+        * `auto` - Automático
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    User:
+      type: object
+      description: Serializer completo para usuarios
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          title: Correo electrónico
+          maxLength: 254
+        username:
+          type: string
+          nullable: true
+          title: Nombre de usuario
+          maxLength: 150
+        first_name:
+          type: string
+          title: Nombres
+          maxLength: 100
+        last_name:
+          type: string
+          title: Apellidos
+          maxLength: 100
+        full_name:
+          type: string
+          readOnly: true
+        phone:
+          type: string
+          title: Teléfono
+          pattern: ^\+?1?\d{9,15}$
+          maxLength: 20
+        gender:
+          title: Género
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+          title: Fecha de nacimiento
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        bio:
+          type: string
+          title: Biografía
+        professional_id:
+          type: string
+          title: Matrícula profesional
+          maxLength: 50
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        role:
+          type: string
+          format: uuid
+          nullable: true
+          title: Rol
+        role_name:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          title: Activo
+        email_verified:
+          type: boolean
+          readOnly: true
+          title: Email verificado
+        two_factor_enabled:
+          type: boolean
+          title: 2FA habilitado
+        preferences:
+          allOf:
+          - $ref: '#/components/schemas/UserPreferences'
+          readOnly: true
+        last_login:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Último login
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - email
+      - email_verified
+      - first_name
+      - full_name
+      - id
+      - last_login
+      - last_name
+      - preferences
+      - role_name
+      - updated_at
+    UserCreate:
+      type: object
+      description: Serializer para crear usuarios
+      properties:
+        email:
+          type: string
+          format: email
+          title: Correo electrónico
+          maxLength: 254
+        first_name:
+          type: string
+          title: Nombres
+          maxLength: 100
+        last_name:
+          type: string
+          title: Apellidos
+          maxLength: 100
+        phone:
+          type: string
+          title: Teléfono
+          pattern: ^\+?1?\d{9,15}$
+          maxLength: 20
+        professional_id:
+          type: string
+          title: Matrícula profesional
+          maxLength: 50
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        role:
+          type: string
+          format: uuid
+          nullable: true
+          title: Rol
+      required:
+      - email
+      - first_name
+      - last_name
+    UserCreateRequest:
+      type: object
+      description: Serializer para crear usuarios
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          title: Correo electrónico
+          maxLength: 254
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 1
+        first_name:
+          type: string
+          minLength: 1
+          title: Nombres
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          title: Apellidos
+          maxLength: 100
+        phone:
+          type: string
+          title: Teléfono
+          pattern: ^\+?1?\d{9,15}$
+          maxLength: 20
+        professional_id:
+          type: string
+          title: Matrícula profesional
+          maxLength: 50
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        role:
+          type: string
+          format: uuid
+          nullable: true
+          title: Rol
+      required:
+      - email
+      - first_name
+      - last_name
+      - password
+      - password_confirm
+    UserPreferences:
+      type: object
+      description: Serializer para preferencias de usuario
+      properties:
+        theme:
+          allOf:
+          - $ref: '#/components/schemas/ThemeEnum'
+          title: Tema
+        language:
+          allOf:
+          - $ref: '#/components/schemas/LanguageEnum'
+          title: Idioma
+        email_notifications:
+          type: boolean
+          title: Notificaciones por email
+        push_notifications:
+          type: boolean
+          title: Notificaciones push
+        custom_settings:
+          type: object
+          additionalProperties: {}
+          title: Configuraciones personalizadas
+    UserPreferencesRequest:
+      type: object
+      description: Serializer para preferencias de usuario
+      properties:
+        theme:
+          allOf:
+          - $ref: '#/components/schemas/ThemeEnum'
+          title: Tema
+        language:
+          allOf:
+          - $ref: '#/components/schemas/LanguageEnum'
+          title: Idioma
+        email_notifications:
+          type: boolean
+          title: Notificaciones por email
+        push_notifications:
+          type: boolean
+          title: Notificaciones push
+        custom_settings:
+          type: object
+          additionalProperties: {}
+          title: Configuraciones personalizadas
+    UserRequest:
+      type: object
+      description: Serializer completo para usuarios
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          title: Correo electrónico
+          maxLength: 254
+        username:
+          type: string
+          nullable: true
+          title: Nombre de usuario
+          maxLength: 150
+        first_name:
+          type: string
+          minLength: 1
+          title: Nombres
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          title: Apellidos
+          maxLength: 100
+        phone:
+          type: string
+          title: Teléfono
+          pattern: ^\+?1?\d{9,15}$
+          maxLength: 20
+        gender:
+          title: Género
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+          title: Fecha de nacimiento
+        avatar:
+          type: string
+          format: binary
+          nullable: true
+        bio:
+          type: string
+          title: Biografía
+        professional_id:
+          type: string
+          title: Matrícula profesional
+          maxLength: 50
+        specialty:
+          type: string
+          title: Especialidad
+          maxLength: 100
+        role:
+          type: string
+          format: uuid
+          nullable: true
+          title: Rol
+        is_active:
+          type: boolean
+          title: Activo
+        two_factor_enabled:
+          type: boolean
+          title: 2FA habilitado
+      required:
+      - email
+      - first_name
+      - last_name
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+tags:
+- name: auth
+  description: Autenticación y autorización
+- name: users
+  description: Gestión de usuarios
+- name: tenants
+  description: Gestión de tenants (hospitales/clínicas)
+- name: patients
+  description: Gestión de pacientes
+- name: clinical-records
+  description: Historias clínicas
+- name: documents
+  description: Documentos clínicos
+- name: reports
+  description: Sistema de reportes
+- name: audit
+  description: Logs de auditoría
+- name: backup
+  description: Sistema de backup
+- name: ai
+  description: Servicios de IA (OCR, ML)

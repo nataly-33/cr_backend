@@ -17,6 +17,7 @@ from .serializers import (
     CustomTokenObtainPairSerializer, RegisterSerializer,
     UserPreferencesSerializer
 )
+from .constants import SystemRoles
 from apps.core.models import Tenant, set_current_tenant
 from apps.core.permissions import (
     IsTenantMember,
@@ -64,11 +65,11 @@ class RegisterView(viewsets.GenericViewSet):
         # Establecer tenant en contexto
         set_current_tenant(tenant)
 
-        # Crear rol admin
+        # Crear rol Administrador TI
         admin_role = Role.objects.create(
             tenant=tenant,
-            name='Administrador',
-            description='Rol con todos los permisos',
+            name=SystemRoles.ADMIN_TI,
+            description='Administrador del tenant con acceso completo',
             is_system_role=True
         )
 
@@ -143,12 +144,12 @@ class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         """Filtrar usuarios según el tipo de usuario"""
         if self.request.user.is_superuser:
-            # Super Admin solo ve usuarios con rol Administrativo de todos los tenants
+            # ASU (Super Admin) solo ve usuarios con rol "Administrador TI" de todos los tenants
             return User.objects.filter(
-                role__name='Administrativo',
+                role__name=SystemRoles.ADMIN_TI,
                 tenant__isnull=False
             ).select_related('role', 'tenant')
-        
+
         # Usuarios normales ven todos los usuarios de su tenant
         return User.objects.filter(tenant=self.request.tenant).select_related('role', 'tenant')
 
@@ -306,21 +307,22 @@ class RoleViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
 class PermissionViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión de permisos.
-    
+
     Permisos globales (sin tenant_id) - Solo superadmins pueden verlos/editarlos
     Permisos por tenant - Solo usuarios del mismo tenant pueden verlos/editarlos
-    
+
     Permisos requeridos:
     - list/retrieve: role.read
     - create: role.create
     - update: role.update
     - delete: role.delete
-    
+
     Solo Administradores TI pueden gestionar permisos.
     """
     serializer_class = PermissionSerializer
     permission_classes = [IsTenantMember, CanManageRoles]
     resource_name = 'role'
+    queryset = Permission.objects.none()  # Para drf-spectacular schema
 
     def get_queryset(self):
         """
@@ -328,6 +330,10 @@ class PermissionViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         - Superusuarios: ven todos (globales + por tenant)
         - Usuarios normales: solo ven permisos de su tenant
         """
+        # Prevenir error en generación de schema
+        if getattr(self, 'swagger_fake_view', False):
+            return Permission.objects.none()
+
         if self.request.user.is_superuser:
             return Permission.objects.all()
         return Permission.objects.filter(tenant=self.request.tenant)
