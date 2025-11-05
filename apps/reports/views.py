@@ -18,8 +18,9 @@ from .generators.excel_generator import generate_documents_excel
 from .generators.csv_generator import generate_documents_csv
 from apps.documents.models import ClinicalDocument
 from apps.core.models import get_current_tenant
+from drf_spectacular.utils import extend_schema
 
-
+@extend_schema(tags=['Reports'])
 class ReportTemplateViewSet(viewsets.ModelViewSet):
     """ViewSet para plantillas de reportes"""
     queryset = ReportTemplate.objects.all()
