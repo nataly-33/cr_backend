@@ -22,7 +22,7 @@ urlpatterns = [
 
     # Rutas adicionales - IMPORTANTE: Ir antes del router para que tengan prioridad
     path('users/me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
-    path('users/me/preferences/', UserViewSet.as_view({'get': 'get_preferences', 'put': 'update_preferences'}), name='user-preferences'),
+    path('users/me/preferences/', UserViewSet.as_view({'get': 'preferences', 'put': 'preferences'}), name='user-preferences'),
 
     # User management
     path('', include(router.urls)),
