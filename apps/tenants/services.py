@@ -5,6 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 from apps.core.models import Tenant
 from apps.accounts.models import User, Role
+from apps.accounts.constants import SystemRoles
 from .models import TenantRegistration, SubscriptionPlan
 
 
@@ -64,91 +65,163 @@ class TenantRegistrationService:
         """
         Paso 3: Enviar email con link de activación
         """
-        # Generar contraseña temporal
-        temp_password = secrets.token_urlsafe(12)
-        
-        # Link de activación
-        activation_url = f"{settings.FRONTEND_URL}/activate/{registration.activation_token}"
-        
-        # Contexto del email
-        context = {
-            'tenant_name': registration.tenant_name,
-            'admin_name': f"{registration.admin_first_name} {registration.admin_last_name}",
-            'subdomain': registration.subdomain,
-            'login_url': f"https://{registration.subdomain}.{settings.BASE_DOMAIN}/login",
-            'activation_url': activation_url,
-            'temp_password': temp_password,
-            'plan_name': registration.selected_plan.name,
-        }
-        
-        # Renderizar email
-        html_message = render_to_string('emails/tenant_activation.html', context)
-        
-        # Enviar email
-        send_mail(
-            subject=f'Bienvenido a MediRecord - Activa tu cuenta',
-            message='',  # Texto plano (opcional)
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[registration.admin_email],
-            html_message=html_message,
-            fail_silently=False,
-        )
-        
-        # Guardar contraseña temporal encriptada para usarla al activar
-        from django.contrib.auth.hashers import make_password
-        registration.temp_password_hash = make_password(temp_password)
-        registration.activation_email_sent_at = timezone.now()
-        registration.save()
-        
-        return True
+        try:
+            # Link de activación
+            activation_url = f"{settings.FRONTEND_URL}/activate/{registration.activation_token}"
+
+            # Contexto del email
+            context = {
+                'tenant_name': registration.tenant_name,
+                'admin_name': f"{registration.admin_first_name} {registration.admin_last_name}",
+                'subdomain': registration.subdomain,
+                'login_url': f"https://{registration.subdomain}.{settings.BASE_DOMAIN}/login",
+                'activation_url': activation_url,
+                'plan_name': registration.selected_plan.name,
+            }
+
+            # Renderizar email
+            html_message = render_to_string('emails/tenant_activation.html', context)
+
+            # Enviar email
+            send_mail(
+                subject=f'Bienvenido a Clinic Records - Activa tu cuenta',
+                message='',  # Texto plano (opcional)
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[registration.admin_email],
+                html_message=html_message,
+                fail_silently=False,
+            )
+
+            # Guardar fecha de envío del email
+            registration.activation_email_sent_at = timezone.now()
+            registration.save()
+
+            return True
+        except Exception as e:
+            # Log del error y re-lanzar con más contexto
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error sending activation email: {str(e)}", exc_info=True)
+            raise Exception(f"Failed to send activation email: {str(e)}")
     
     @staticmethod
     def activate_tenant(activation_token, new_password):
         """
         Paso 4: Activar tenant y crear toda la estructura
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"[ACTIVATE] Iniciando activación con token: {activation_token[:20]}...")
+
         registration = TenantRegistration.objects.get(
             activation_token=activation_token,
             status='payment_completed'
         )
-        
-        # 1. Crear el Tenant
-        tenant = Tenant.objects.create(
-            name=registration.tenant_name,
+
+        logger.info(f"[ACTIVATE] Registration encontrado: ID={registration.id}, subdomain={registration.subdomain}")
+
+        # 1. Verificar si el tenant ya existe o crearlo
+        plan = registration.selected_plan
+        plan_map = {
+            'basic': 'basic',
+            'professional': 'pro',
+            'enterprise': 'enterprise',
+        }
+
+        logger.info(f"[ACTIVATE] Intentando crear/buscar tenant para subdomain={registration.subdomain}")
+
+        tenant, tenant_created = Tenant.objects.get_or_create(
             subdomain=registration.subdomain,
-            is_active=True,
-            plan=registration.selected_plan.plan_type,
-            max_users=registration.selected_plan.max_users,
-            max_patients=registration.selected_plan.max_patients,
-            storage_limit_gb=registration.selected_plan.storage_gb,
+            defaults={
+                'name': registration.tenant_name,
+                'slug': registration.subdomain,
+                'subscription_plan': plan_map.get(plan.plan_type, plan.plan_type),
+                'subscription_status': 'active',
+                'subscription_start': timezone.now(),
+                'max_users': plan.max_users,
+                'max_storage_gb': plan.storage_gb,
+                'email': registration.admin_email,
+                'phone': registration.admin_phone or ''
+            }
         )
-        
-        # 2. Crear roles del tenant
-        from apps.accounts.services import RoleService
-        RoleService.create_default_roles(tenant)
-        
-        # 3. Crear usuario administrador
-        admin_role = Role.objects.get(tenant=tenant, name='Admin TI')
-        
-        admin_user = User.objects.create(
+
+        if tenant_created:
+            logger.info(f"[ACTIVATE] ✅ Tenant CREADO: ID={tenant.id}, name={tenant.name}")
+        else:
+            logger.info(f"[ACTIVATE] ⏭️  Tenant YA EXISTÍA: ID={tenant.id}, name={tenant.name}")
+
+        # 2. Crear o buscar rol de Administrador TI para este tenant
+        logger.info(f"[ACTIVATE] Intentando crear/buscar rol {SystemRoles.ADMIN_TI} para tenant_id={tenant.id}")
+
+        admin_role, role_created = Role.objects.get_or_create(
             tenant=tenant,
-            email=f"admin@{registration.subdomain}.{settings.BASE_DOMAIN}",  # Email interno
-            personal_email=registration.admin_email,  # Email real
-            first_name=registration.admin_first_name,
-            last_name=registration.admin_last_name,
-            phone=registration.admin_phone,
-            is_active=True,
-            role=admin_role,
+            name=SystemRoles.ADMIN_TI,
+            defaults={
+                'description': 'Administrador del tenant con acceso completo',
+                'is_system_role': True
+            }
         )
-        admin_user.set_password(new_password)  # Password que eligió el usuario
+
+        if role_created:
+            logger.info(f"[ACTIVATE] ✅ Rol CREADO: ID={admin_role.id}, name={admin_role.name}")
+        else:
+            logger.info(f"[ACTIVATE] ⏭️  Rol YA EXISTÍA: ID={admin_role.id}, name={admin_role.name}")
+
+        # Si es un nuevo rol y existe el rol global, copiar permisos
+        if role_created:
+            try:
+                global_admin_role = Role.objects.get(name=SystemRoles.ADMIN_TI, tenant__isnull=True)
+                admin_role.permissions.set(global_admin_role.permissions.all())
+                logger.info(f"[ACTIVATE] ✅ Permisos copiados del rol global ({global_admin_role.permissions.count()} permisos)")
+            except Role.DoesNotExist:
+                logger.warning(f"[ACTIVATE] ⚠️  No hay rol global {SystemRoles.ADMIN_TI}, el rol quedará sin permisos")
+
+        # 3. Crear o buscar usuario administrador
+        admin_email = f"admin@{registration.subdomain}.{settings.BASE_DOMAIN}"
+        logger.info(f"[ACTIVATE] Intentando crear/buscar usuario con email={admin_email}, tenant_id={tenant.id}")
+
+        admin_user, user_created = User.objects.get_or_create(
+            tenant=tenant,
+            email=admin_email,
+            defaults={
+                'personal_email': registration.admin_email,
+                'first_name': registration.admin_first_name,
+                'last_name': registration.admin_last_name,
+                'phone': registration.admin_phone,
+                'is_active': True,
+                'role': admin_role,
+            }
+        )
+
+        if user_created:
+            logger.info(f"[ACTIVATE] ✅ Usuario CREADO: ID={admin_user.id}, email={admin_user.email}")
+        else:
+            logger.info(f"[ACTIVATE] ⏭️  Usuario YA EXISTÍA: ID={admin_user.id}, email={admin_user.email}")
+
+        # Actualizar contraseña (incluso si el usuario ya existía)
+        admin_user.set_password(new_password)
         admin_user.save()
-        
+        logger.info(f"[ACTIVATE] ✅ Contraseña establecida para usuario ID={admin_user.id}")
+
+        # Verificar que el usuario realmente se guardó
+        verification_user = User.objects.filter(tenant=tenant, email=admin_email).first()
+        if verification_user:
+            logger.info(f"[ACTIVATE] ✅ VERIFICACIÓN: Usuario encontrado en BD - ID={verification_user.id}, email={verification_user.email}, is_active={verification_user.is_active}")
+        else:
+            logger.error(f"[ACTIVATE] ❌ ERROR CRÍTICO: Usuario NO encontrado en BD después de crear/actualizar!")
+
         # 4. Actualizar registro
         registration.tenant = tenant
         registration.status = 'activated'
         registration.activated_at = timezone.now()
         registration.save()
-        
+
+        logger.info(f"[ACTIVATE] ✅ Registro actualizado a 'activated'")
+        logger.info(f"[ACTIVATE] ✅✅✅ ACTIVACIÓN COMPLETADA EXITOSAMENTE")
+        logger.info(f"[ACTIVATE] URL de login: https://{tenant.subdomain}.{settings.BASE_DOMAIN}/login")
+        logger.info(f"[ACTIVATE] Email: {admin_email}")
+
         return {
             'tenant': tenant,
             'admin_user': admin_user,

@@ -7,6 +7,7 @@ from django.db.models import Count, Sum
 
 from apps.core.models import Tenant
 from apps.core.permissions import IsSuperAdmin
+from apps.accounts.constants import SystemRoles
 from .models import SubscriptionPlan, TenantRegistration
 from .serializers import (
     TenantSerializer,
@@ -21,16 +22,22 @@ from .serializers import (
 from .services import TenantRegistrationService
 
 
+@extend_schema(tags=['Tenants'])
 class TenantViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet para gestión de tenants (solo lectura, solo admin)
     """
     serializer_class = TenantSerializer
     permission_classes = [IsAuthenticated, IsSuperAdmin]
-    
+    queryset = Tenant.objects.none()  # Para drf-spectacular schema
+
     def get_queryset(self):
-        # Solo superadmin puede ver todos los tenants
-        if self.request.user.role and self.request.user.role.name == 'ASU':
+        # Prevenir error en generación de schema
+        if getattr(self, 'swagger_fake_view', False):
+            return Tenant.objects.none()
+
+        # Solo ASU (superadmin) puede ver todos los tenants
+        if self.request.user.is_superuser:
             return Tenant.objects.all()
         # Los demás solo ven su propio tenant
         return Tenant.objects.filter(id=self.request.user.tenant_id)
@@ -63,24 +70,28 @@ class TenantViewSet(viewsets.ReadOnlyModelViewSet):
         total_bytes = ClinicalDocument.objects.filter(
             tenant=tenant
         ).aggregate(
-            total=Sum('file_size')
+            total=Sum('file_size_bytes')
         )['total'] or 0
         storage_used_gb = round(total_bytes / (1024 ** 3), 2)
-        
+
+        # Límites del tenant (usar valores por defecto si no existen)
+        max_patients = 1000  # Valor por defecto
+        max_storage_gb = tenant.max_storage_gb if hasattr(tenant, 'max_storage_gb') else 10
+
         # Calcular porcentajes
         users_percentage = (users_count / tenant.max_users * 100) if tenant.max_users > 0 else 0
-        patients_percentage = (patients_count / tenant.max_patients * 100) if tenant.max_patients > 0 else 0
-        storage_percentage = (storage_used_gb / tenant.storage_limit_gb * 100) if tenant.storage_limit_gb > 0 else 0
-        
+        patients_percentage = (patients_count / max_patients * 100) if max_patients > 0 else 0
+        storage_percentage = (storage_used_gb / max_storage_gb * 100) if max_storage_gb > 0 else 0
+
         stats = {
             'users_count': users_count,
             'users_limit': tenant.max_users,
             'users_percentage': round(users_percentage, 2),
             'patients_count': patients_count,
-            'patients_limit': tenant.max_patients,
+            'patients_limit': max_patients,
             'patients_percentage': round(patients_percentage, 2),
             'storage_used_gb': storage_used_gb,
-            'storage_limit_gb': tenant.storage_limit_gb,
+            'storage_limit_gb': max_storage_gb,
             'storage_percentage': round(storage_percentage, 2),
             'documents_count': documents_count,
             'clinical_records_count': records_count,
@@ -90,6 +101,7 @@ class TenantViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
+@extend_schema(tags=['Public - Planes'])
 class PublicSubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API PÚBLICA para ver planes de suscripción
@@ -98,14 +110,7 @@ class PublicSubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = SubscriptionPlan.objects.filter(is_active=True)
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [AllowAny]
-    
-    @extend_schema(
-        summary="Listar planes de suscripción disponibles",
-        description="Endpoint público para ver todos los planes activos",
-        tags=['Public']
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+    pagination_class = None  # Desactivar paginación para devolver array directo
 
 
 @extend_schema(
@@ -127,7 +132,7 @@ class PublicSubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
     },
     summary="Registrar nuevo tenant",
     description="Endpoint público para registrar un nuevo tenant (clínica/hospital)",
-    tags=['Public']
+    tags=['Public - Registro']
 )
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -179,7 +184,7 @@ def public_register_tenant(request):
     },
     summary="Simular pago (desarrollo)",
     description="Endpoint para simular pago en desarrollo. En producción usaría Stripe.",
-    tags=['Public']
+    tags=['Public - Registro']
 )
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -227,7 +232,7 @@ def public_simulate_payment(request, registration_id):
     },
     summary="Activar tenant con nueva contraseña",
     description="Activa el tenant y crea toda la estructura (roles, admin user, etc.)",
-    tags=['Public']
+    tags=['Public - Registro']
 )
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -263,6 +268,11 @@ def public_activate_tenant(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     except Exception as e:
+        import logging
+        import traceback
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error activating tenant: {str(e)}")
+        logger.error(traceback.format_exc())
         return Response(
             {'error': 'Error al activar el tenant', 'detail': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -285,7 +295,7 @@ def public_activate_tenant(request):
     },
     summary="Verificar disponibilidad de subdominio",
     description="Verifica si un subdominio está disponible para registro",
-    tags=['Public']
+    tags=['Public - Registro']
 )
 @api_view(['GET'])
 @permission_classes([AllowAny])

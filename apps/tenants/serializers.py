@@ -30,30 +30,30 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
 
 class TenantSerializer(serializers.ModelSerializer):
     """Serializer para tenant (protegido, solo para admin)"""
-    
+
     plan_name = serializers.SerializerMethodField()
     current_users = serializers.SerializerMethodField()
     current_patients = serializers.SerializerMethodField()
     storage_used_gb = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Tenant
         fields = [
             'id',
             'name',
             'subdomain',
-            'plan',
+            'subscription_plan',
             'plan_name',
-            'is_active',
+            'subscription_status',
             'max_users',
-            'max_patients',
-            'storage_limit_gb',
+            'max_storage_gb',
             'current_users',
             'current_patients',
             'storage_used_gb',
             'settings',
             'created_at',
-            'trial_ends_at',
+            'subscription_start',
+            'subscription_end',
         ]
         read_only_fields = [
             'id',
@@ -63,37 +63,37 @@ class TenantSerializer(serializers.ModelSerializer):
             'current_patients',
             'storage_used_gb',
         ]
-    
+
     def get_plan_name(self, obj):
         """Nombre legible del plan"""
         plan_names = {
             'basic': 'Básico',
-            'professional': 'Profesional',
+            'pro': 'Profesional',
             'enterprise': 'Empresarial',
         }
-        return plan_names.get(obj.plan, obj.plan)
-    
+        return plan_names.get(obj.subscription_plan, obj.subscription_plan)
+
     def get_current_users(self, obj):
         """Cantidad actual de usuarios"""
         from apps.accounts.models import User
         return User.objects.filter(tenant=obj, is_active=True).count()
-    
+
     def get_current_patients(self, obj):
         """Cantidad actual de pacientes"""
         from apps.patients.models import Patient
         return Patient.objects.filter(tenant=obj).count()
-    
+
     def get_storage_used_gb(self, obj):
         """Almacenamiento usado en GB"""
         from apps.documents.models import ClinicalDocument
         from django.db.models import Sum
-        
+
         total_bytes = ClinicalDocument.objects.filter(
             tenant=obj
         ).aggregate(
-            total=Sum('file_size')
+            total=Sum('file_size_bytes')
         )['total'] or 0
-        
+
         # Convertir bytes a GB
         return round(total_bytes / (1024 ** 3), 2)
 
