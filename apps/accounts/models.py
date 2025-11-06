@@ -61,12 +61,13 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name=_('Email')
     )
     # Email personal (contacto real) separado del email de sistema/login
-    personal_email = models.EmailField(
-        max_length=254,
-        blank=True,
-        null=True,
-        verbose_name=_('Email personal')
-    )
+    # TEMPORALMENTE COMENTADO - La columna no existe en la BD
+    # personal_email = models.EmailField(
+    #     max_length=254,
+    #     blank=True,
+    #     null=True,
+    #     verbose_name=_('Email personal')
+    # )
     username = models.CharField(
         max_length=150,
         blank=True,
