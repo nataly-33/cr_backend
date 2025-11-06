@@ -8,6 +8,7 @@ from .services import BackupService
 from .seeder_service import SeederService
 
 
+@extend_schema(tags=['Backups'])
 class BackupViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet para gestión de backups"""
     queryset = BackupJob.objects.all()

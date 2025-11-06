@@ -154,6 +154,8 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Serializer personalizado para JWT con datos del usuario"""
+    username = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
 
     @classmethod
     def get_token(cls, user):
@@ -168,7 +170,36 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        data = super().validate(attrs)
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Soportar tanto 'email' como 'username' (que se mapea a email)
+        email = attrs.get('email') or attrs.get('username')
+        password = attrs.get('password')
+
+        logger.info(f"Login attempt - Email: {email}")
+
+        if not email or not password:
+            raise serializers.ValidationError('Email y contraseña son requeridos')
+
+        # Reemplazar username con email para que funcione con el modelo personalizado
+        attrs['username'] = email
+
+        # Verificar si el usuario existe antes de intentar autenticar
+        from apps.accounts.models import User
+        try:
+            user = User.objects.get(email=email)
+            logger.info(f"User found - Email: {email}, Active: {user.is_active}, Tenant: {user.tenant_id}")
+        except User.DoesNotExist:
+            logger.error(f"User not found with email: {email}")
+            raise serializers.ValidationError('Credenciales inválidas')
+
+        try:
+            data = super().validate(attrs)
+            logger.info(f"Login successful for: {email}")
+        except Exception as e:
+            logger.error(f"Login failed for {email}: {str(e)}")
+            raise
 
         # Agregar información del usuario a la respuesta
         data['user'] = UserSerializer(self.user).data

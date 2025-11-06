@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from .models import AuditLog
 
 
@@ -19,7 +20,8 @@ class AuditLogSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'timestamp', 'log_hash']
 
-    def get_is_valid_hash(self, obj):
+    @extend_schema_field(serializers.BooleanField)
+    def get_is_valid_hash(self, obj) -> bool:
         """Verifica la integridad del log"""
         return obj.verify_integrity()
 

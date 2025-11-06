@@ -1,0 +1,28 @@
+{% extends "emails/base.html" %}
+
+{% block header %}Nueva Historia Clínica Creada{% endblock %}
+
+{% block main_content %}
+<h3>Hola {{ user.first_name }},</h3>
+
+<p>Se ha creado una nueva historia clínica en el sistema:</p>
+
+<div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin: 15px 0;">
+    <p><strong>Paciente:</strong> {{ record.patient.full_name }}</p>
+    <p><strong>Tipo de Historia:</strong> {{ record.record_type }}</p>
+    <p><strong>Diagnóstico:</strong> {{ record.diagnosis }}</p>
+    <p><strong>Creada el:</strong> {{ record.created_at|date:"d/m/Y H:i" }}</p>
+</div>
+
+<p>Puedes acceder a la historia clínica desde tu panel de control:</p>
+
+<center>
+    <a href="http://localhost:3000/clinical-records" class="button">Ver Historias Clínicas</a>
+</center>
+
+<p>Si tienes alguna pregunta, contacta al administrador del sistema.</p>
+
+<br>
+<p>Saludos,<br>
+<strong>El equipo de Clinical Records</strong></p>
+{% endblock %}

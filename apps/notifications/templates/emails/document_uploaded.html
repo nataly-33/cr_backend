@@ -1,0 +1,28 @@
+{% extends "emails/base.html" %}
+
+{% block header %}Nuevo Documento Cargado{% endblock %}
+
+{% block main_content %}
+<h3>Hola {{ user.first_name }},</h3>
+
+<p>Se ha cargado un nuevo documento en el sistema:</p>
+
+<div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin: 15px 0;">
+    <p><strong>Nombre del Documento:</strong> {{ document.name }}</p>
+    <p><strong>Tipo:</strong> {{ document.type_code }}</p>
+    <p><strong>Descripción:</strong> {{ document.description }}</p>
+    <p><strong>Cargado el:</strong> {{ document.created_at|date:"d/m/Y H:i" }}</p>
+</div>
+
+<p>Puedes acceder al documento desde tu panel de control:</p>
+
+<center>
+    <a href="http://localhost:3000/documents" class="button">Ver Documentos</a>
+</center>
+
+<p>Si tienes alguna pregunta, contacta al administrador del sistema.</p>
+
+<br>
+<p>Saludos,<br>
+<strong>El equipo de Clinical Records</strong></p>
+{% endblock %}

@@ -11,7 +11,7 @@ class Tenant(models.Model):
     """
     SUBSCRIPTION_CHOICES = [
         ('basic', 'Basic'),
-        ('pro', 'Pro'),
+        ('professional', 'Professional'),
         ('enterprise', 'Enterprise'),
     ]
 
