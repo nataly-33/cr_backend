@@ -54,10 +54,20 @@ class PermissionCodes:
     REPORT_CREATE = 'report.create'
     REPORT_READ = 'report.read'
     REPORT_EXPORT = 'report.export'
+    REPORT_ANALYZE = 'report.analyze'
+    REPORT_SUMMARIZE = 'report.summarize'
+    REPORT_RECOMMEND = 'report.recommend'
     
     # Auditoría
     AUDIT_READ = 'audit.read'
     AUDIT_EXPORT = 'audit.export'
+    
+    # Notificaciones
+    NOTIFICATION_CREATE = 'notification.create'
+    NOTIFICATION_READ = 'notification.read'
+    NOTIFICATION_UPDATE = 'notification.update'
+    NOTIFICATION_DELETE = 'notification.delete'
+    NOTIFICATION_MANAGE = 'notification.manage'
 
 
 # ============================================================================

@@ -2,9 +2,10 @@ from django.apps import AppConfig
 
 
 class NotificationsConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.notifications'
-    verbose_name = 'Notificaciones'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "apps.notifications"
+    verbose_name = "Notificaciones"
     
     def ready(self):
-        import apps.notifications.signals  # Registrar signals
+        # Importar signals cuando la app esté lista
+        pass  # import apps.notifications.signals

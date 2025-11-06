@@ -51,6 +51,15 @@ class ReportExecution(TenantAwareModel):
         ('completed', 'Completado'),
         ('failed', 'Fallido'),
     ]
+    
+    REPORT_TYPE_CHOICES = [
+        ('documents', 'Documentos Clínicos'),
+        ('patients', 'Pacientes'),
+        ('clinical_records', 'Historias Clínicas'),
+        ('analytics', 'Analíticas'),
+        ('audit', 'Auditoría'),
+        ('users', 'Usuarios'),
+    ]
 
     template = models.ForeignKey(
         ReportTemplate,
@@ -63,6 +72,13 @@ class ReportExecution(TenantAwareModel):
         'accounts.User',
         on_delete=models.CASCADE,
         related_name='executed_reports'
+    )
+    
+    report_type = models.CharField(
+        max_length=50,
+        choices=REPORT_TYPE_CHOICES,
+        blank=True,
+        default='documents'
     )
     
     parameters_used = models.JSONField(default=dict)
@@ -87,3 +103,59 @@ class ReportExecution(TenantAwareModel):
     
     def __str__(self):
         return f"Report {self.id} - {self.status}"
+
+
+class AIAnalysis(TenantAwareModel):
+    """Análisis generados por IA para reportes"""
+    
+    PRIORITY_CHOICES = [
+        ('critical', 'Crítica'),
+        ('high', 'Alta'),
+        ('medium', 'Media'),
+        ('low', 'Baja'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('completed', 'Completado'),
+        ('failed', 'Fallido'),
+    ]
+
+    report_execution = models.OneToOneField(
+        ReportExecution,
+        on_delete=models.CASCADE,
+        related_name='ai_analysis'
+    )
+    
+    # Analysis data
+    analysis = models.TextField()
+    insights = models.JSONField(default=list)  # List of insight strings
+    key_findings = models.JSONField(default=list)  # List of key findings
+    confidence_score = models.FloatField(default=0.0)
+    
+    # Summary data
+    summary = models.TextField(blank=True, null=True)
+    summary_key_points = models.JSONField(default=list, blank=True)
+    
+    # Recommendations
+    recommendations = models.JSONField(default=list, blank=True)
+    
+    # Status
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    error_message = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        db_table = 'ai_analysis'
+        verbose_name = 'AI Analysis'
+        verbose_name_plural = 'AI Analyses'
+        indexes = [
+            models.Index(fields=['report_execution', '-created_at']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"AI Analysis for {self.report_execution_id}"

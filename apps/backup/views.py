@@ -1,11 +1,11 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from drf_spectacular.utils import extend_schema
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from .models import BackupJob
 from .serializers import BackupJobSerializer
 from .services import BackupService
+from .seeder_service import SeederService
 
 
 @extend_schema(tags=['Backups'])
@@ -60,5 +60,63 @@ class BackupViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception as e:
             return Response(
                 {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminUser])
+    def run_seeder(self, request):
+        """
+        Ejecutar el seeder de datos
+        
+        Query params:
+            - script: Nombre del script seeder (default: seed_data.py)
+            
+        Ejemplo:
+            POST /api/backup/backup-jobs/run_seeder/
+            POST /api/backup/backup-jobs/run_seeder/?script=seed_clinical_records.py
+        """
+        # Verificar que solo admin puede ejecutar
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response(
+                {'error': 'Solo administradores pueden ejecutar seeders'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            # Obtener nombre del script del query param
+            script_name = request.query_params.get('script', 'seed_data.py')
+            
+            # Ejecutar seeder
+            result = SeederService.run_seeder(script_name=script_name)
+            
+            # Retornar resultado
+            if result['success']:
+                return Response(
+                    {
+                        'status': 'success',
+                        'message': result['message'],
+                        'output': result['stdout'],
+                        'script': script_name
+                    },
+                    status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {
+                        'status': 'error',
+                        'message': result['message'],
+                        'error': result['stderr'],
+                        'script': script_name
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+        except Exception as e:
+            return Response(
+                {
+                    'status': 'error',
+                    'message': f'Error inesperado: {str(e)}',
+                    'error': str(e)
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
