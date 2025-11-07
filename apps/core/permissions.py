@@ -75,6 +75,19 @@ class PermissionCodes:
     NOTIFICATION_DELETE = 'notification.delete'
     NOTIFICATION_MANAGE = 'notification.manage'
     
+    # Pagos y Facturación
+    PAYMENT_CREATE = 'payment.create'
+    PAYMENT_READ = 'payment.read'
+    PAYMENT_UPDATE = 'payment.update'
+    PAYMENT_DELETE = 'payment.delete'
+    PAYMENT_REFUND = 'payment.refund'
+    
+    INVOICE_CREATE = 'invoice.create'
+    INVOICE_READ = 'invoice.read'
+    INVOICE_UPDATE = 'invoice.update'
+    INVOICE_DELETE = 'invoice.delete'
+    INVOICE_DOWNLOAD = 'invoice.download'
+    
     # Dashboard
     DASHBOARD_VIEW = 'dashboard.view'
     DASHBOARD_VIEW_GLOBAL = 'dashboard.view_global'

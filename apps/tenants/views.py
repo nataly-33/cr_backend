@@ -101,6 +101,19 @@ class TenantViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
+@extend_schema(tags=['Planes - Protegido'])
+class SubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet protegido para ver planes de suscripción disponibles.
+    Requiere autenticación de usuario válido.
+    Los planes son iguales para todos los tenants.
+    """
+    queryset = SubscriptionPlan.objects.filter(is_active=True)
+    serializer_class = SubscriptionPlanSerializer
+    permission_classes = [IsAuthenticated]  # Solo requiere estar autenticado
+    pagination_class = None  # Desactivar paginación para devolver array directo
+
+
 @extend_schema(tags=['Public - Planes'])
 class PublicSubscriptionPlanViewSet(viewsets.ReadOnlyModelViewSet):
     """
