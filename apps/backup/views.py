@@ -6,7 +6,7 @@ from .models import BackupJob
 from .serializers import BackupJobSerializer
 from .services import BackupService
 from .seeder_service import SeederService
-
+from drf_spectacular.utils import extend_schema
 
 @extend_schema(tags=['Backups'])
 class BackupViewSet(viewsets.ReadOnlyModelViewSet):

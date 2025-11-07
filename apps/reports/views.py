@@ -36,13 +36,10 @@ from apps.accounts.models import User
 from apps.core.models import get_current_tenant
 from drf_spectacular.utils import extend_schema
 
-<<<<<<< HEAD
 logger = logging.getLogger(__name__)
 
 
-=======
 @extend_schema(tags=['Reports'])
->>>>>>> d06b261f51cf0df03e855522ca396a5614d56582
 class ReportTemplateViewSet(viewsets.ModelViewSet):
     """ViewSet para plantillas de reportes"""
     queryset = ReportTemplate.objects.all()

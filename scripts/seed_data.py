@@ -356,15 +356,12 @@ def create_permissions_and_roles(tenant):
     set_current_tenant(tenant)
 
     # Definir recursos y acciones
-<<<<<<< HEAD
-    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit', 'notification']
+    # Incluimos 'notification' y permisos de gestión; algunos combos se filtran abajo
+    resources = [
+        'patient', 'clinical_record', 'document', 'user', 'role',
+        'report', 'audit', 'notification'
+    ]
     actions = ['create', 'read', 'update', 'delete', 'export', 'sign', 'manage']
-    
-=======
-    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit']
-    actions = ['create', 'read', 'update', 'delete', 'export', 'sign']
-
->>>>>>> d06b261f51cf0df03e855522ca396a5614d56582
     permissions = []
     permissions_dict = {}
 
@@ -372,21 +369,16 @@ def create_permissions_and_roles(tenant):
     for resource in resources:
         for action in actions:
             # No todos los recursos tienen todas las acciones
+            # Excluir combinaciones inválidas
             if resource == 'audit' and action in ['create', 'update', 'delete']:
                 continue
             if resource == 'audit' and action in ['sign', 'manage']:
                 continue
             if action == 'sign' and resource != 'document':
                 continue
-<<<<<<< HEAD
-            if resource == 'notification' and action == 'sign':
+            # Notifications no deben tener 'sign' ni 'export'
+            if resource == 'notification' and action in ['sign', 'export']:
                 continue
-            if resource == 'notification' and action == 'export':
-                continue
-            
-=======
-
->>>>>>> d06b261f51cf0df03e855522ca396a5614d56582
             perm_code = f'{resource}.{action}'
             perm, created = Permission.objects.get_or_create(
                 tenant=tenant,

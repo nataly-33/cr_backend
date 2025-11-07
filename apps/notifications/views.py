@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count
+from django.db.utils import ProgrammingError, OperationalError
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from django.contrib.auth import get_user_model
@@ -110,10 +111,15 @@ class NotificationViewSet(PermissionByActionMixin, viewsets.ReadOnlyModelViewSet
     @action(detail=False, methods=['get'])
     def unread_count(self, request):
         """Obtener contador de notificaciones no leídas."""
-        count = self.get_queryset().filter(
-            status__in=[NotificationStatus.QUEUED, NotificationStatus.SENT]
-        ).count()
-        
+        try:
+            count = self.get_queryset().filter(
+                status__in=[NotificationStatus.QUEUED, NotificationStatus.SENT]
+            ).count()
+        except (ProgrammingError, OperationalError) as e:
+            # DB table might not exist yet (migrations not applied). Log and return 0 instead of 500.
+            logger.warning(f"Database error when counting notifications: {e}")
+            count = 0
+
         return Response({
             'unread_count': count,
         }, status=status.HTTP_200_OK)
@@ -121,21 +127,27 @@ class NotificationViewSet(PermissionByActionMixin, viewsets.ReadOnlyModelViewSet
     @action(detail=False, methods=['get'])
     def stats(self, request):
         """Obtener estadísticas de notificaciones."""
-        qs = self.get_queryset()
-        
-        total = qs.count()
-        unread = qs.filter(status__in=[NotificationStatus.QUEUED, NotificationStatus.SENT]).count()
-        queued = qs.filter(status=NotificationStatus.QUEUED).count()
-        sent = qs.filter(status=NotificationStatus.SENT).count()
-        failed = qs.filter(status=NotificationStatus.FAILED).count()
-        
-        by_type = dict(
-            qs.values('type').annotate(count=Count('id')).values_list('type', 'count')
-        )
-        
-        by_channel = dict(
-            qs.values('channel').annotate(count=Count('id')).values_list('channel', 'count')
-        )
+        try:
+            qs = self.get_queryset()
+
+            total = qs.count()
+            unread = qs.filter(status__in=[NotificationStatus.QUEUED, NotificationStatus.SENT]).count()
+            queued = qs.filter(status=NotificationStatus.QUEUED).count()
+            sent = qs.filter(status=NotificationStatus.SENT).count()
+            failed = qs.filter(status=NotificationStatus.FAILED).count()
+
+            by_type = dict(
+                qs.values('type').annotate(count=Count('id')).values_list('type', 'count')
+            )
+
+            by_channel = dict(
+                qs.values('channel').annotate(count=Count('id')).values_list('channel', 'count')
+            )
+        except (ProgrammingError, OperationalError) as e:
+            logger.warning(f"Database error when computing notification stats: {e}")
+            total = unread = queued = sent = failed = 0
+            by_type = {}
+            by_channel = {}
         
         stats_data = {
             'total': total,
