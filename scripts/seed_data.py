@@ -356,15 +356,8 @@ def create_permissions_and_roles(tenant):
     set_current_tenant(tenant)
 
     # Definir recursos y acciones
-<<<<<<< HEAD
-    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit', 'notification']
-    actions = ['create', 'read', 'update', 'delete', 'export', 'sign', 'manage']
-    
-=======
-    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit']
-    actions = ['create', 'read', 'update', 'delete', 'export', 'sign']
-
->>>>>>> d06b261f51cf0df03e855522ca396a5614d56582
+    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit', 'notification', 'dashboard']
+    actions = ['create', 'read', 'update', 'delete', 'export', 'sign', 'manage', 'view', 'view_global']
     permissions = []
     permissions_dict = {}
 
@@ -378,15 +371,12 @@ def create_permissions_and_roles(tenant):
                 continue
             if action == 'sign' and resource != 'document':
                 continue
-<<<<<<< HEAD
             if resource == 'notification' and action == 'sign':
                 continue
             if resource == 'notification' and action == 'export':
                 continue
-            
-=======
-
->>>>>>> d06b261f51cf0df03e855522ca396a5614d56582
+            if resource == 'dashboard' and action in ['create', 'update', 'delete', 'sign', 'export', 'manage']:
+                continue
             perm_code = f'{resource}.{action}'
             perm, created = Permission.objects.get_or_create(
                 tenant=tenant,
@@ -441,6 +431,8 @@ def create_permissions_and_roles(tenant):
                 permissions_dict.get('notification.read'),
                 permissions_dict.get('notification.update'),
                 permissions_dict.get('notification.create'),
+                # Dashboard: lectura
+                permissions_dict.get('dashboard.view'),
             ]
         },
         'Paciente': {

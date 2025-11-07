@@ -22,6 +22,7 @@ urlpatterns = [
 
     # API Routes Protegidas
     path('api/', include('apps.accounts.urls')),
+    path('api/', include('apps.core.urls')),
     path('api/patients/', include('apps.patients.urls')),
     path('api/clinical-records/', include('apps.clinical_records.urls')),
     path('api/documents/', include('apps.documents.urls')),

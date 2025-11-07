@@ -36,13 +36,10 @@ from apps.accounts.models import User
 from apps.core.models import get_current_tenant
 from drf_spectacular.utils import extend_schema
 
-<<<<<<< HEAD
 logger = logging.getLogger(__name__)
 
 
-=======
 @extend_schema(tags=['Reports'])
->>>>>>> d06b261f51cf0df03e855522ca396a5614d56582
 class ReportTemplateViewSet(viewsets.ModelViewSet):
     """ViewSet para plantillas de reportes"""
     queryset = ReportTemplate.objects.all()
@@ -415,6 +412,31 @@ class ReportGeneratorViewSet(viewsets.ViewSet):
                 {'error': f'Error al generar reporte: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+    
+    @action(detail=False, methods=['get'])
+    def available_types(self, request):
+        """
+        Obtener tipos de reportes disponibles
+        GET /api/reports/generator/available-types/
+        """
+        from .models import ReportExecution
+        
+        available_types = [
+            {'value': choice[0], 'label': choice[1]}
+            for choice in ReportExecution.REPORT_TYPE_CHOICES
+        ]
+        
+        output_formats = ['pdf', 'excel', 'csv']
+        
+        return Response({
+            'report_types': available_types,
+            'output_formats': [
+                {'value': 'pdf', 'label': 'PDF'},
+                {'value': 'excel', 'label': 'Excel (XLSX)'},
+                {'value': 'csv', 'label': 'CSV'},
+            ],
+            'description': 'Tipos de reportes disponibles en el sistema'
+        })
     
     @action(detail=False, methods=['post'])
     def generate_dynamic(self, request):

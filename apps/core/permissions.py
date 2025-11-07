@@ -68,6 +68,10 @@ class PermissionCodes:
     NOTIFICATION_UPDATE = 'notification.update'
     NOTIFICATION_DELETE = 'notification.delete'
     NOTIFICATION_MANAGE = 'notification.manage'
+    
+    # Dashboard
+    DASHBOARD_VIEW = 'dashboard.view'
+    DASHBOARD_VIEW_GLOBAL = 'dashboard.view_global'
 
 
 # ============================================================================
