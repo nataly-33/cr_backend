@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'apps.backup',
     'apps.seed',
     'apps.notifications',
+    'apps.payments',
 ]
 
 MIDDLEWARE = [
@@ -249,6 +250,14 @@ else:
 # URLs para emails
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
 BASE_DOMAIN = config('BASE_DOMAIN', default='localhost')
+
+# ============================================================================
+# STRIPE - PAGOS Y FACTURACIÓN
+# ============================================================================
+
+STRIPE_PUBLIC_KEY = config('STRIPE_PUBLIC_KEY', default='')
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 
 # ============================================================================
 # LOGGING

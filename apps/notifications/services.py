@@ -1,159 +1,170 @@
 import os
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
-from django.template.loader import render_to_string
+import uuid
 from django.utils import timezone
-from .models import Notification, NotificationPreference, EmailLog
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from .models import (
+    Notification,
+    NotificationType,
+    NotificationChannel,
+    NotificationStatus,
+    UserNotificationPreferences,
+    NotificationAudit,
+)
 
 
 class NotificationService:
-    def __init__(self):
-        api_key = os.environ.get('SENDGRID_API_KEY')
-        if not api_key:
-            raise ValueError("SENDGRID_API_KEY no configurada en .env")
-        self.sg = SendGridAPIClient(api_key)
-        self.from_email = os.environ.get('SENDGRID_FROM_EMAIL', 'noreply@clinicalrecords.com')
+    """Servicio para crear y gestionar notificaciones."""
     
-    def send_email(self, to_email, subject, template_name, context):
+    def create_notification(
+        self,
+        tenant,
+        user,
+        title,
+        body,
+        notification_type=NotificationType.SYSTEM_ALERT,
+        channel=NotificationChannel.IN_APP,
+        data=None,
+        extra_metadata=None,
+    ):
         """
-        Enviar email usando SendGrid
+        Crear una notificación.
         
         Args:
-            to_email: Email del destinatario
-            subject: Asunto del email
-            template_name: Nombre del template HTML
-            context: Contexto para renderizar template
+            tenant: Tenant del usuario
+            user: Usuario destinatario
+            title: Título de la notificación
+            body: Cuerpo del mensaje
+            notification_type: Tipo de notificación
+            channel: Canal de entrega
+            data: Datos adicionales (dict)
+            extra_metadata: Metadatos flexibles (dict)
         
         Returns:
-            bool: True si fue exitoso
+            Notification: Notificación creada
         """
+        # Generar event_id único
+        event_id = f"{notification_type}_{user.id}_{timezone.now().timestamp()}_{uuid.uuid4().hex[:8]}"
+        
+        # Verificar si ya existe (idempotencia)
         try:
-            # Renderizar template
-            html_content = render_to_string(
-                f'emails/{template_name}',
-                context
-            )
-            
-            # Crear mensaje
-            message = Mail(
-                from_email=self.from_email,
-                to_emails=to_email,
-                subject=subject,
-                html_content=html_content
-            )
-            
-            # Enviar
-            response = self.sg.send(message)
-            
-            # Log
-            EmailLog.objects.create(
-                user_email=to_email,
-                subject=subject,
-                notification_type=context.get('type', 'other'),
-                status='sent',
-                sent_at=timezone.now()
-            )
-            
-            return response.status_code in [200, 202]
+            existing = Notification.objects.get(event_id=event_id)
+            return existing
+        except Notification.DoesNotExist:
+            pass
         
-        except Exception as e:
-            # Log error
-            EmailLog.objects.create(
-                user_email=to_email,
-                subject=subject,
-                notification_type=context.get('type', 'other'),
-                status='failed',
-                error_message=str(e)
-            )
-            print(f"Error enviando email: {e}")
-            return False
-    
-    def can_send_email(self, user):
-        """Verificar si se puede enviar email (respeta límites)"""
-        prefs, created = NotificationPreference.objects.get_or_create(user=user)
+        # Crear notificación
+        notification = Notification.objects.create(
+            tenant=tenant,
+            user=user,
+            type=notification_type,
+            channel=channel,
+            title=title,
+            body=body,
+            data=data or {},
+            extra_metadata=extra_metadata or {},
+            event_id=event_id,
+            status=NotificationStatus.QUEUED,
+        )
         
-        # Verificar limit diario
-        today_start = timezone.now().replace(hour=0, minute=0, second=0)
-        today_emails = EmailLog.objects.filter(
-            user_email=user.email,
-            status='sent',
-            sent_at__gte=today_start
-        ).count()
+        # Log en auditoría
+        NotificationAudit.objects.create(
+            tenant=tenant,
+            notification=notification,
+            action='created',
+            detail=f"Notificación {notification_type} creada automáticamente",
+        )
         
-        if today_emails >= prefs.max_emails_per_day:
-            return False
-        
-        return True
+        return notification
     
     def notify_document_uploaded(self, document, recipients):
-        """Notificar cuando se carga un documento"""
+        """
+        Notificar cuando se carga un documento.
+        
+        Args:
+            document: ClinicalDocument instance
+            recipients: Queryset de Users o lista de Users
+        """
+        if not hasattr(recipients, '__iter__'):
+            recipients = [recipients]
+        
         for recipient in recipients:
-            # Verificar preferencias
-            prefs, created = NotificationPreference.objects.get_or_create(user=recipient)
-            if not prefs.document_uploaded_email:
-                continue
-            
-            if not self.can_send_email(recipient):
-                continue
-            
-            # Crear notificación in-app
-            Notification.objects.create(
+            # Verificar preferencias del usuario
+            prefs, _ = UserNotificationPreferences.objects.get_or_create(
                 tenant=document.tenant,
-                user=recipient,
-                type='document_uploaded',
-                title=f'Nuevo documento: {document.name}',
-                message=f'Se cargó el documento {document.name}',
-                related_model='ClinicalDocument',
-                related_id=str(document.id),
-                icon='file',
-                color='blue'
+                user=recipient
             )
             
-            # Enviar email
-            context = {
-                'user': recipient,
-                'document': document,
-                'type': 'document_uploaded'
-            }
+            # Crear notificación in-app
+            notification = self.create_notification(
+                tenant=document.tenant,
+                user=recipient,
+                title=f"Nuevo documento: {document.document_type}",
+                body=f"Se cargó un documento de tipo {document.document_type}",
+                notification_type=NotificationType.DOCUMENT_UPLOADED,
+                channel=NotificationChannel.IN_APP,
+                data={
+                    'document_id': str(document.id),
+                    'document_type': document.document_type,
+                    'created_by': str(document.created_by_id) if document.created_by else None,
+                },
+                extra_metadata={
+                    'icon': 'file',
+                    'color': 'blue',
+                    'link': f"/documents/{document.id}",
+                }
+            )
             
-            self.send_email(
-                recipient.email,
-                f'Nuevo documento cargado: {document.name}',
-                'document_uploaded.html',
-                context
+            # Marcar como enviada
+            notification.mark_as_sent()
+            
+            # Log en auditoría
+            NotificationAudit.objects.create(
+                tenant=document.tenant,
+                notification=notification,
+                action='sent',
+                detail=f"Documento cargado notificado a {recipient.email}",
             )
     
     def notify_record_created(self, record, recipients):
-        """Notificar cuando se crea una historia clínica"""
+        """
+        Notificar cuando se crea una historia clínica.
+        
+        Args:
+            record: ClinicalRecord instance
+            recipients: Queryset de Users o lista de Users
+        """
+        if not hasattr(recipients, '__iter__'):
+            recipients = [recipients]
+        
         for recipient in recipients:
-            prefs, created = NotificationPreference.objects.get_or_create(user=recipient)
-            if not prefs.record_created_email:
-                continue
-            
-            if not self.can_send_email(recipient):
-                continue
-            
-            Notification.objects.create(
+            # Crear notificación
+            notification = self.create_notification(
                 tenant=record.tenant,
                 user=recipient,
-                type='record_created',
-                title=f'Nueva historia clínica para {record.patient.full_name}',
-                message=f'Se creó una nueva historia clínica',
-                related_model='ClinicalRecord',
-                related_id=str(record.id),
-                icon='file-medical',
-                color='green'
+                title=f"Nueva historia clínica para {record.patient.get_full_name()}",
+                body=f"Se creó una nueva historia clínica",
+                notification_type=NotificationType.CLINICAL_RESULT,
+                channel=NotificationChannel.IN_APP,
+                data={
+                    'record_id': str(record.id),
+                    'record_number': record.record_number,
+                    'patient_name': record.patient.get_full_name(),
+                },
+                extra_metadata={
+                    'icon': 'file-medical',
+                    'color': 'green',
+                    'link': f"/clinical-records/{record.id}",
+                }
             )
             
-            context = {
-                'user': recipient,
-                'record': record,
-                'type': 'record_created'
-            }
+            # Marcar como enviada
+            notification.mark_as_sent()
             
-            self.send_email(
-                recipient.email,
-                f'Nueva historia clínica para {record.patient.full_name}',
-                'record_created.html',
-                context
+            # Log en auditoría
+            NotificationAudit.objects.create(
+                tenant=record.tenant,
+                notification=notification,
+                action='sent',
+                detail=f"Historia clínica creada notificada a {recipient.email}",
             )
