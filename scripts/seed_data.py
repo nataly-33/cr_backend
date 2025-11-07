@@ -356,12 +356,8 @@ def create_permissions_and_roles(tenant):
     set_current_tenant(tenant)
 
     # Definir recursos y acciones
-    # Incluimos 'notification' y permisos de gestión; algunos combos se filtran abajo
-    resources = [
-        'patient', 'clinical_record', 'document', 'user', 'role',
-        'report', 'audit', 'notification'
-    ]
-    actions = ['create', 'read', 'update', 'delete', 'export', 'sign', 'manage']
+    resources = ['patient', 'clinical_record', 'clinical_form', 'document', 'user', 'role', 'report', 'audit', 'notification', 'dashboard']
+    actions = ['create', 'read', 'update', 'delete', 'export', 'sign', 'manage', 'view', 'view_global']
     permissions = []
     permissions_dict = {}
 
@@ -376,8 +372,11 @@ def create_permissions_and_roles(tenant):
                 continue
             if action == 'sign' and resource != 'document':
                 continue
-            # Notifications no deben tener 'sign' ni 'export'
-            if resource == 'notification' and action in ['sign', 'export']:
+            if resource == 'notification' and action == 'sign':
+                continue
+            if resource == 'notification' and action == 'export':
+                continue
+            if resource == 'dashboard' and action in ['create', 'update', 'delete', 'sign', 'export', 'manage']:
                 continue
             perm_code = f'{resource}.{action}'
             perm, created = Permission.objects.get_or_create(
@@ -418,6 +417,11 @@ def create_permissions_and_roles(tenant):
                 permissions_dict.get('clinical_record.update'),
                 permissions_dict.get('clinical_record.delete'),
                 permissions_dict.get('clinical_record.export'),
+                # Formularios clínicos: CRUD completo
+                permissions_dict.get('clinical_form.create'),
+                permissions_dict.get('clinical_form.read'),
+                permissions_dict.get('clinical_form.update'),
+                permissions_dict.get('clinical_form.delete'),
                 # Documentos: CRUD completo + firma
                 permissions_dict.get('document.create'),
                 permissions_dict.get('document.read'),
@@ -433,6 +437,8 @@ def create_permissions_and_roles(tenant):
                 permissions_dict.get('notification.read'),
                 permissions_dict.get('notification.update'),
                 permissions_dict.get('notification.create'),
+                # Dashboard: lectura
+                permissions_dict.get('dashboard.view'),
             ]
         },
         'Paciente': {

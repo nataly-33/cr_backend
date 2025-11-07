@@ -29,6 +29,12 @@ class PermissionCodes:
     CLINICAL_RECORD_DELETE = 'clinical_record.delete'
     CLINICAL_RECORD_EXPORT = 'clinical_record.export'
     
+    # Formularios Clínicos
+    CLINICAL_FORM_CREATE = 'clinical_form.create'
+    CLINICAL_FORM_READ = 'clinical_form.read'
+    CLINICAL_FORM_UPDATE = 'clinical_form.update'
+    CLINICAL_FORM_DELETE = 'clinical_form.delete'
+    
     # Documentos
     DOCUMENT_CREATE = 'document.create'
     DOCUMENT_READ = 'document.read'
@@ -68,6 +74,10 @@ class PermissionCodes:
     NOTIFICATION_UPDATE = 'notification.update'
     NOTIFICATION_DELETE = 'notification.delete'
     NOTIFICATION_MANAGE = 'notification.manage'
+    
+    # Dashboard
+    DASHBOARD_VIEW = 'dashboard.view'
+    DASHBOARD_VIEW_GLOBAL = 'dashboard.view_global'
 
 
 # ============================================================================

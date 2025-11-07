@@ -10,11 +10,13 @@ from .serializers import (
     ClinicalRecordSerializer, 
     ClinicalRecordCreateSerializer,
     ClinicalFormSerializer,
-    ClinicalFormCreateSerializer
+    ClinicalFormCreateSerializer,
+    ClinicalFormUpdateSerializer
 )
 from apps.core.permissions import (
     IsTenantMember,
     CanManageClinicalRecords,
+    HasPermission,
     PermissionByActionMixin
 )
 
@@ -128,16 +130,16 @@ class ClinicalFormViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     ViewSet para gestión de formularios clínicos.
     
     Permisos requeridos:
-    - list/retrieve: clinical_record.read
-    - create: clinical_record.create
-    - update: clinical_record.update
-    - delete: clinical_record.delete
+    - list/retrieve: clinical_form.read
+    - create: clinical_form.create
+    - update: clinical_form.update
+    - delete: clinical_form.delete
     
     Los formularios incluyen: Triaje, Notas de evolución, Recetas, Órdenes, etc.
     """
     queryset = ClinicalForm.objects.all()
-    permission_classes = [IsTenantMember, CanManageClinicalRecords]
-    resource_name = 'clinical_record'
+    permission_classes = [IsTenantMember, HasPermission]
+    resource_name = 'clinical_form'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['form_type', 'doctor_name', 'doctor_specialty']
     filterset_fields = ['form_type', 'clinical_record', 'filled_by']
@@ -147,6 +149,8 @@ class ClinicalFormViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return ClinicalFormCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return ClinicalFormUpdateSerializer
         return ClinicalFormSerializer
 
     def get_queryset(self):
