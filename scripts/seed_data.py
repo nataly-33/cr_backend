@@ -356,9 +356,15 @@ def create_permissions_and_roles(tenant):
     set_current_tenant(tenant)
 
     # Definir recursos y acciones
+<<<<<<< HEAD
+    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit', 'notification']
+    actions = ['create', 'read', 'update', 'delete', 'export', 'sign', 'manage']
+    
+=======
     resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit']
     actions = ['create', 'read', 'update', 'delete', 'export', 'sign']
 
+>>>>>>> d06b261f51cf0df03e855522ca396a5614d56582
     permissions = []
     permissions_dict = {}
 
@@ -368,9 +374,19 @@ def create_permissions_and_roles(tenant):
             # No todos los recursos tienen todas las acciones
             if resource == 'audit' and action in ['create', 'update', 'delete']:
                 continue
+            if resource == 'audit' and action in ['sign', 'manage']:
+                continue
             if action == 'sign' and resource != 'document':
                 continue
+<<<<<<< HEAD
+            if resource == 'notification' and action == 'sign':
+                continue
+            if resource == 'notification' and action == 'export':
+                continue
+            
+=======
 
+>>>>>>> d06b261f51cf0df03e855522ca396a5614d56582
             perm_code = f'{resource}.{action}'
             perm, created = Permission.objects.get_or_create(
                 tenant=tenant,
@@ -421,6 +437,10 @@ def create_permissions_and_roles(tenant):
                 permissions_dict.get('report.read'),
                 permissions_dict.get('report.create'),
                 permissions_dict.get('report.export'),
+                # Notificaciones: lectura, actualización, creación
+                permissions_dict.get('notification.read'),
+                permissions_dict.get('notification.update'),
+                permissions_dict.get('notification.create'),
             ]
         },
         'Paciente': {
@@ -430,6 +450,8 @@ def create_permissions_and_roles(tenant):
                 # Solo lectura de su historia clínica
                 permissions_dict.get('clinical_record.read'),
                 permissions_dict.get('document.read'),
+                # Notificaciones: solo lectura
+                permissions_dict.get('notification.read'),
             ]
         }
     }

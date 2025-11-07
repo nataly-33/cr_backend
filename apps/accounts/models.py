@@ -198,6 +198,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         """Retorna el nombre completo"""
         return f"{self.first_name} {self.last_name}".strip()
 
+    @property
+    def full_name(self):
+        """Propiedad para acceder al nombre completo"""
+        return self.get_full_name()
+
     def get_short_name(self):
         """Retorna el nombre corto"""
         return self.first_name

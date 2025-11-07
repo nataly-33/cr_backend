@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'apps.audit',
     'apps.reports',
     'apps.backup',
+    'apps.seed',
     'apps.notifications',
 ]
 
