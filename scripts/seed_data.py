@@ -365,6 +365,7 @@ def create_permissions_and_roles(tenant):
     for resource in resources:
         for action in actions:
             # No todos los recursos tienen todas las acciones
+            # Excluir combinaciones inválidas
             if resource == 'audit' and action in ['create', 'update', 'delete']:
                 continue
             if resource == 'audit' and action in ['sign', 'manage']:
