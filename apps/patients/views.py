@@ -65,27 +65,109 @@ class PatientViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
-        """Estadísticas de pacientes del tenant"""
+        """Estadísticas detalladas de pacientes del tenant"""
+        from django.db.models import Count, Q
+        from django.utils import timezone
+        from datetime import timedelta
+        
         queryset = self.get_queryset()
-
+        
+        # Contar documentos
+        from apps.documents.models import ClinicalDocument
+        from apps.clinical_records.models import ClinicalForm, ClinicalRecord
+        
+        today = timezone.now().date()
+        week_ago = today - timedelta(days=7)
+        month_ago = today - timedelta(days=30)
+        
+        documents_total = ClinicalDocument.objects.filter(
+            tenant=self.request.tenant,
+            deleted_at__isnull=True
+        ).count()
+        
+        documents_today = ClinicalDocument.objects.filter(
+            tenant=self.request.tenant,
+            deleted_at__isnull=True,
+            created_at__date=today
+        ).count()
+        
+        documents_this_week = ClinicalDocument.objects.filter(
+            tenant=self.request.tenant,
+            deleted_at__isnull=True,
+            created_at__date__gte=week_ago
+        ).count()
+        
+        # Contar formularios
+        forms_total = ClinicalForm.objects.filter(
+            tenant=self.request.tenant
+        ).count()
+        
+        forms_by_type = ClinicalForm.objects.filter(
+            tenant=self.request.tenant
+        ).values('form_type').annotate(count=Count('id')).order_by('-count')
+        
+        # Contar historias clínicas
+        records_total = ClinicalRecord.objects.filter(
+            tenant=self.request.tenant
+        ).count()
+        
+        records_active = ClinicalRecord.objects.filter(
+            tenant=self.request.tenant,
+            status='active'
+        ).count()
+        
+        # Calcular edad promedio
+        from django.db.models import F, Q
+        from datetime import date
+        today_year = today.year
+        
+        ages = []
+        for patient in queryset:
+            if patient.date_of_birth:
+                age = today_year - patient.date_of_birth.year
+                ages.append(age)
+        
+        avg_age = sum(ages) / len(ages) if ages else 0
+        
         stats = {
-            'total': queryset.count(),
-            'by_gender': {
-                'M': queryset.filter(gender='M').count(),
-                'F': queryset.filter(gender='F').count(),
-                'O': queryset.filter(gender='O').count(),
+            'patients': {
+                'total': queryset.count(),
+                'by_gender': {
+                    'M': queryset.filter(gender='M').count(),
+                    'F': queryset.filter(gender='F').count(),
+                    'O': queryset.filter(gender='O').count(),
+                },
+                'by_age_range': {
+                    '0-17': len([a for a in ages if a < 18]),
+                    '18-30': len([a for a in ages if 18 <= a < 31]),
+                    '31-50': len([a for a in ages if 31 <= a < 51]),
+                    '51+': len([a for a in ages if a >= 51]),
+                },
+                'average_age': round(avg_age, 1),
             },
-            'by_age_range': {
-                '0-17': queryset.filter(date_of_birth__year__gte=2007).count(),
-                '18-30': queryset.filter(
-                    date_of_birth__year__gte=1994,
-                    date_of_birth__year__lt=2007
+            'documents': {
+                'total': documents_total,
+                'today': documents_today,
+                'this_week': documents_this_week,
+            },
+            'clinical_records': {
+                'total': records_total,
+                'active': records_active,
+                'archived': ClinicalRecord.objects.filter(
+                    tenant=self.request.tenant,
+                    status='archived'
                 ).count(),
-                '31-50': queryset.filter(
-                    date_of_birth__year__gte=1974,
-                    date_of_birth__year__lt=1994
+                'closed': ClinicalRecord.objects.filter(
+                    tenant=self.request.tenant,
+                    status='closed'
                 ).count(),
-                '51+': queryset.filter(date_of_birth__year__lt=1974).count(),
+            },
+            'forms': {
+                'total': forms_total,
+                'by_type': [
+                    {'type': item['form_type'], 'count': item['count']}
+                    for item in forms_by_type
+                ]
             }
         }
 
