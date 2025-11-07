@@ -356,7 +356,7 @@ def create_permissions_and_roles(tenant):
     set_current_tenant(tenant)
 
     # Definir recursos y acciones
-    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit', 'notification', 'dashboard']
+    resources = ['patient', 'clinical_record', 'clinical_form', 'document', 'user', 'role', 'report', 'audit', 'notification', 'dashboard']
     actions = ['create', 'read', 'update', 'delete', 'export', 'sign', 'manage', 'view', 'view_global']
     permissions = []
     permissions_dict = {}
@@ -416,6 +416,11 @@ def create_permissions_and_roles(tenant):
                 permissions_dict.get('clinical_record.update'),
                 permissions_dict.get('clinical_record.delete'),
                 permissions_dict.get('clinical_record.export'),
+                # Formularios clínicos: CRUD completo
+                permissions_dict.get('clinical_form.create'),
+                permissions_dict.get('clinical_form.read'),
+                permissions_dict.get('clinical_form.update'),
+                permissions_dict.get('clinical_form.delete'),
                 # Documentos: CRUD completo + firma
                 permissions_dict.get('document.create'),
                 permissions_dict.get('document.read'),

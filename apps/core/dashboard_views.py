@@ -152,16 +152,20 @@ class DashboardViewSet(viewsets.ViewSet):
         for log in recent_logs:
             activity.append({
                 'id': str(log.id),
-                'action': log.action,
-                'model': log.model_name,
+                'action': log.action_type,
+                'resource_type': log.resource_type,
+                'resource_name': log.resource_name,
                 'user': {
                     'id': str(log.user.id) if log.user else None,
-                    'name': f"{log.user.first_name} {log.user.last_name}" if log.user else 'Sistema',
+                    'name': log.user_name or 'Sistema',
+                    'email': log.user_email,
                 },
                 'timestamp': log.timestamp.isoformat(),
                 'details': {
-                    'before': log.changes_before,
-                    'after': log.changes_after,
+                    'before': log.changes.get('before', {}),
+                    'after': log.changes.get('after', {}),
+                    'ip_address': log.ip_address,
+                    'status_code': log.response_status,
                 }
             })
 

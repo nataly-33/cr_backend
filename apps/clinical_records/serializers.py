@@ -122,3 +122,16 @@ class ClinicalFormCreateSerializer(serializers.ModelSerializer):
         """Crear formulario con tenant del request"""
         validated_data['tenant'] = self.context['request'].tenant
         return super().create(validated_data)
+
+
+class ClinicalFormUpdateSerializer(serializers.ModelSerializer):
+    """Serializer para actualizar formularios clínicos"""
+
+    class Meta:
+        model = ClinicalForm
+        fields = [
+            'id', 'clinical_record', 'form_type', 'form_template_id',
+            'form_data', 'doctor_name', 'doctor_specialty',
+            'form_date'
+        ]
+        read_only_fields = ['id', 'form_type', 'clinical_record']
