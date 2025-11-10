@@ -8,4 +8,4 @@ class NotificationsConfig(AppConfig):
     
     def ready(self):
         # Importar signals cuando la app esté lista
-        pass  # import apps.notifications.signals
+        import apps.notifications.signals

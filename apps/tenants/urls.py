@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     TenantViewSet,
+    SubscriptionPlanViewSet,
     PublicSubscriptionPlanViewSet,
     public_register_tenant,
     public_simulate_payment,
@@ -10,6 +11,7 @@ from .views import (
 )
 
 router = DefaultRouter()
+router.register(r'subscription-plans', SubscriptionPlanViewSet, basename='subscription-plans')
 router.register(r'', TenantViewSet, basename='tenant')
 
 public_patterns = [

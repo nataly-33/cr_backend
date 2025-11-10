@@ -356,15 +356,8 @@ def create_permissions_and_roles(tenant):
     set_current_tenant(tenant)
 
     # Definir recursos y acciones
-<<<<<<< HEAD
-    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit', 'notification']
-    actions = ['create', 'read', 'update', 'delete', 'export', 'sign', 'manage']
-    
-=======
-    resources = ['patient', 'clinical_record', 'document', 'user', 'role', 'report', 'audit']
-    actions = ['create', 'read', 'update', 'delete', 'export', 'sign']
-
->>>>>>> d06b261f51cf0df03e855522ca396a5614d56582
+    resources = ['patient', 'clinical_record', 'clinical_form', 'document', 'user', 'role', 'report', 'audit', 'notification', 'dashboard', 'payment', 'invoice']
+    actions = ['create', 'read', 'update', 'delete', 'export', 'sign', 'manage', 'view', 'view_global', 'refund', 'download']
     permissions = []
     permissions_dict = {}
 
@@ -372,21 +365,21 @@ def create_permissions_and_roles(tenant):
     for resource in resources:
         for action in actions:
             # No todos los recursos tienen todas las acciones
+            # Excluir combinaciones inválidas
             if resource == 'audit' and action in ['create', 'update', 'delete']:
                 continue
-            if resource == 'audit' and action in ['sign', 'manage']:
+            if resource == 'audit' and action in ['sign', 'manage', 'refund', 'download']:
                 continue
             if action == 'sign' and resource != 'document':
                 continue
-<<<<<<< HEAD
-            if resource == 'notification' and action == 'sign':
+            if resource == 'notification' and action in ['sign', 'export', 'refund', 'download']:
                 continue
-            if resource == 'notification' and action == 'export':
+            if resource == 'dashboard' and action in ['create', 'update', 'delete', 'sign', 'export', 'manage', 'refund', 'download']:
                 continue
-            
-=======
-
->>>>>>> d06b261f51cf0df03e855522ca396a5614d56582
+            if resource == 'payment' and action not in ['read', 'refund', 'view']:
+                continue
+            if resource == 'invoice' and action not in ['read', 'download', 'view']:
+                continue
             perm_code = f'{resource}.{action}'
             perm, created = Permission.objects.get_or_create(
                 tenant=tenant,
@@ -426,6 +419,11 @@ def create_permissions_and_roles(tenant):
                 permissions_dict.get('clinical_record.update'),
                 permissions_dict.get('clinical_record.delete'),
                 permissions_dict.get('clinical_record.export'),
+                # Formularios clínicos: CRUD completo
+                permissions_dict.get('clinical_form.create'),
+                permissions_dict.get('clinical_form.read'),
+                permissions_dict.get('clinical_form.update'),
+                permissions_dict.get('clinical_form.delete'),
                 # Documentos: CRUD completo + firma
                 permissions_dict.get('document.create'),
                 permissions_dict.get('document.read'),
@@ -441,6 +439,11 @@ def create_permissions_and_roles(tenant):
                 permissions_dict.get('notification.read'),
                 permissions_dict.get('notification.update'),
                 permissions_dict.get('notification.create'),
+                # Dashboard: lectura
+                permissions_dict.get('dashboard.view'),
+                # Pagos e Invoices: lectura
+                permissions_dict.get('payment.read'),
+                permissions_dict.get('invoice.read'),
             ]
         },
         'Paciente': {
@@ -452,6 +455,9 @@ def create_permissions_and_roles(tenant):
                 permissions_dict.get('document.read'),
                 # Notificaciones: solo lectura
                 permissions_dict.get('notification.read'),
+                # Pagos e Invoices: lectura
+                permissions_dict.get('payment.read'),
+                permissions_dict.get('invoice.read'),
             ]
         }
     }

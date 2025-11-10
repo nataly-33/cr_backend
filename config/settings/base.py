@@ -26,6 +26,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     'drf_spectacular',
+    'django_celery_beat',
+    'django_celery_results',
 
     # Local apps
     'apps.core',
@@ -39,6 +41,7 @@ INSTALLED_APPS = [
     'apps.backup',
     'apps.seed',
     'apps.notifications',
+    'apps.payments',
 ]
 
 MIDDLEWARE = [
@@ -205,8 +208,9 @@ SPECTACULAR_SETTINGS = {
 }
 
 # Celery Configuration
-CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = config('REDIS_URL', default='redis://localhost:6379/0')
+REDIS_URL = config('REDIS_URL', default='redis://localhost:6379/0')
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default=REDIS_URL)
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default=REDIS_URL)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -246,6 +250,14 @@ else:
 # URLs para emails
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
 BASE_DOMAIN = config('BASE_DOMAIN', default='localhost')
+
+# ============================================================================
+# STRIPE - PAGOS Y FACTURACIÓN
+# ============================================================================
+
+STRIPE_PUBLIC_KEY = config('STRIPE_PUBLIC_KEY', default='')
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 
 # ============================================================================
 # LOGGING
