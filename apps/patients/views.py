@@ -52,6 +52,42 @@ class PatientViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
             created_by=self.request.user
         )
 
+    @action(detail=False, methods=['get'])
+    def without_active_record(self, request):
+        """Retorna pacientes que NO tienen historia clínica activa"""
+        from apps.clinical_records.models import ClinicalRecord
+        from django.db.models import Q
+        
+        # Obtener IDs de pacientes con historia activa
+        patients_with_active = ClinicalRecord.objects.filter(
+            tenant=request.tenant,
+            status='active',
+            deleted_at__isnull=True
+        ).values_list('patient_id', flat=True)
+        
+        # Filtrar pacientes sin historia activa
+        queryset = self.get_queryset().exclude(id__in=patients_with_active)
+        
+        # Aplicar búsqueda si existe
+        search_query = request.query_params.get('search', '')
+        if search_query:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search_query) |
+                Q(last_name__icontains=search_query) |
+                Q(identity_document__icontains=search_query) |
+                Q(email__icontains=search_query)
+            )
+        
+        # Paginación
+        page_size = int(request.query_params.get('page_size', 10))
+        queryset = queryset[:page_size]
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'results': serializer.data,
+            'count': len(serializer.data)
+        })
+
     @action(detail=True, methods=['get'])
     def clinical_records(self, request, pk=None):
         """Retorna las historias clínicas del paciente"""

@@ -410,9 +410,11 @@ def create_permissions_and_roles(tenant):
             'description': 'Doctor con acceso CRUD completo a historias clínicas y documentos',
             'is_system_role': False,
             'permissions': [
-                # Pacientes: lectura y actualización
+                # Pacientes: CRUD completo
+                permissions_dict.get('patient.create'),
                 permissions_dict.get('patient.read'),
                 permissions_dict.get('patient.update'),
+                permissions_dict.get('patient.delete'),
                 # Historias clínicas: CRUD completo
                 permissions_dict.get('clinical_record.create'),
                 permissions_dict.get('clinical_record.read'),

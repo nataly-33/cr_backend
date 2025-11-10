@@ -108,7 +108,7 @@ class ClinicalFormCreateSerializer(serializers.ModelSerializer):
             'form_data', 'filled_by', 'doctor_name', 'doctor_specialty',
             'form_date'
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'filled_by']
 
     def validate_clinical_record(self, value):
         """Validar que la historia clínica esté activa"""

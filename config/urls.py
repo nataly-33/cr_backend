@@ -7,10 +7,16 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
+from apps.core.views.health import health_check, readiness_check, liveness_check
 
 urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
+
+    # Health Checks (para ALB/monitoring)
+    path('api/health/', health_check, name='health-check'),
+    path('api/readiness/', readiness_check, name='readiness-check'),
+    path('api/liveness/', liveness_check, name='liveness-check'),
 
     # API Schema & Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
