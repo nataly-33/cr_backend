@@ -108,7 +108,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         fields = [
             'email', 'password', 'password_confirm',
             'first_name', 'last_name', 'phone',
-            'professional_id', 'specialty', 'role'
+            'professional_id', 'specialty', 'role', 'tenant'
         ]
 
     def validate(self, attrs):
@@ -166,6 +166,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['full_name'] = user.get_full_name()
         token['tenant_id'] = str(user.tenant_id) if user.tenant else None
         token['role'] = user.role.name if user.role else None
+        token['is_superuser'] = user.is_superuser
 
         return token
 
@@ -189,7 +190,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         from apps.accounts.models import User
         try:
             user = User.objects.get(email=email)
-            logger.info(f"User found - Email: {email}, Active: {user.is_active}, Tenant: {user.tenant_id}")
+            logger.info(f"User found - Email: {email}, Active: {user.is_active}, Tenant: {user.tenant_id}, is_superuser: {user.is_superuser}")
         except User.DoesNotExist:
             logger.error(f"User not found with email: {email}")
             raise serializers.ValidationError('Credenciales inválidas')

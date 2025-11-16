@@ -78,6 +78,11 @@ class NotificationViewSet(PermissionByActionMixin, viewsets.ReadOnlyModelViewSet
     
     def get_queryset(self):
         """Filtrar notificaciones del usuario actual."""
+        # Super admin sin tenant: retornar queryset vacío
+        # (los super admins no tienen notificaciones personales)
+        if self.request.user.is_superuser and self.request.tenant is None:
+            return Notification.objects.none()
+
         return Notification.objects.filter(
             tenant=self.request.tenant,
             user=self.request.user,

@@ -153,6 +153,15 @@ class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         # Usuarios normales ven todos los usuarios de su tenant
         return User.objects.filter(tenant=self.request.tenant).select_related('role', 'tenant')
 
+    def perform_create(self, serializer):
+        """Asignar automáticamente el tenant al crear usuario"""
+        if self.request.user.is_superuser and self.request.data.get('tenant'):
+            # Super admin puede especificar tenant explícitamente
+            serializer.save()
+        else:
+            # Usuario normal siempre crea en su tenant
+            serializer.save(tenant=self.request.tenant)
+
     @action(detail=False, methods=['get'])
     def me(self, request):
         """Retorna el usuario actual"""
