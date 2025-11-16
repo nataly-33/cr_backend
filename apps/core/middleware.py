@@ -62,11 +62,19 @@ class TenantMiddleware(MiddlewareMixin):
                 try:
                     access = AccessToken(token)
                     tenant_id = access.get('tenant_id')
+                    is_superuser = access.get('is_superuser', False)
+                    
                     if tenant_id:
                         try:
                             tenant = Tenant.objects.get(id=tenant_id, deleted_at__isnull=True)
                         except Tenant.DoesNotExist:
                             tenant = None
+                    
+                    # Si es superuser y no tiene tenant_id, permitir sin tenant
+                    if is_superuser and not tenant_id:
+                        set_current_tenant(None)
+                        request.tenant = None
+                        return None
                 except Exception:
                     # invalid token, ignore and continue
                     tenant = None
@@ -85,6 +93,9 @@ class TenantMiddleware(MiddlewareMixin):
 
             set_current_tenant(tenant)
             request.tenant = tenant
+        else:
+            # Si no hay tenant, establecer None explícitamente
+            request.tenant = None
 
         return None
 

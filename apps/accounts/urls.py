@@ -16,13 +16,13 @@ router.register(r'permissions', PermissionViewSet, basename='permission')
 
 urlpatterns = [
     # Authentication
-    path('login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('register/', RegisterView.as_view({'post': 'register'}), name='register'),
+    path('auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/register/', RegisterView.as_view({'post': 'register'}), name='register'),
 
     # Rutas adicionales - IMPORTANTE: Ir antes del router para que tengan prioridad
     path('users/me/', UserViewSet.as_view({'get': 'me'}), name='user-me'),
-    path('users/me/preferences/', UserViewSet.as_view({'get': 'preferences', 'put': 'preferences'}), name='user-preferences'),
+    path('users/me/preferences/', UserViewSet.as_view({'get': 'get_preferences', 'put': 'update_preferences'}), name='user-preferences'),
 
     # User management
     path('', include(router.urls)),

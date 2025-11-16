@@ -50,6 +50,13 @@ class TenantViewSet(viewsets.ReadOnlyModelViewSet):
     def stats(self, request):
         """Obtener estadísticas de uso del tenant actual"""
         tenant = request.user.tenant
+
+        # Super admin sin tenant: retornar error
+        if request.user.is_superuser and tenant is None:
+            return Response(
+                {'error': 'Super admin no tiene tenant. Use /api/tenants/ para ver todos los tenants.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         # Contar usuarios activos
         from apps.accounts.models import User
