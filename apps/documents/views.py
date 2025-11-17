@@ -18,6 +18,7 @@ from .serializers import (
     DocumentAccessLogSerializer
 )
 from .services import DocumentService
+from .tasks import process_document_ocr  # Importar tarea Celery
 from apps.core.permissions import (
     IsTenantMember,
     CanManageDocuments,
@@ -69,7 +70,7 @@ from apps.core.permissions import (
 class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión de documentos clínicos.
-    
+
     Permisos requeridos:
     - list/retrieve: document.read
     - create/upload: document.create
@@ -81,7 +82,6 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     queryset = ClinicalDocument.objects.all()
     permission_classes = [IsTenantMember, CanManageDocuments]
     resource_name = 'document'
-    parser_classes = [MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'description', 'doctor_name', 'ocr_text']
     filterset_fields = ['document_type', 'specialty', 'is_signed', 'clinical_record']
@@ -98,9 +98,18 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         'destroy': [IsTenantMember, CanManageDocuments],
         'upload': [IsTenantMember],
         'download': [IsTenantMember],  # Solo requiere ser miembro del tenant
+        'view': [IsTenantMember],  # Visualización de documentos
         'sign': [IsTenantMember, CanManageDocuments],
         'access_log': [IsTenantMember],
     }
+
+    def get_parser_classes(self):
+        """
+        Usar MultiPartParser solo para upload y update (cuando se reemplace archivo)
+        """
+        if self.action in ['upload', 'update', 'partial_update']:
+            return [MultiPartParser, FormParser]
+        return super().get_parser_classes()
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -115,10 +124,74 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Asignar tenant y usuario creador"""
-        serializer.save(
+        document = serializer.save(
             tenant=self.request.tenant,
             created_by=self.request.user
         )
+
+        # Si tiene archivo y es PDF o imagen, lanzar OCR
+        if document.mime_type in ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']:
+            process_document_ocr.delay(str(document.id))
+
+    def update(self, request, *args, **kwargs):
+        """
+        Actualizar documento con soporte opcional para reemplazo de archivo
+        """
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+
+        # Verificar si el documento está bloqueado
+        if instance.is_locked:
+            return Response(
+                {'error': 'El documento está bloqueado y no puede ser modificado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verificar si se está enviando un nuevo archivo
+        file_obj = request.FILES.get('file')
+
+        if file_obj:
+            # Si hay archivo nuevo, eliminar el antiguo de S3 y subir el nuevo
+            from .storage import S3Storage
+            storage = S3Storage()
+
+            # Eliminar archivo antiguo si existe
+            if instance.file_path:
+                storage.delete_file(instance.file_path)
+
+            # Subir nuevo archivo
+            doc_service = DocumentService()
+            success = doc_service.upload_document(instance, file_obj)
+
+            if not success:
+                return Response(
+                    {'error': 'Error al subir el nuevo archivo'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            # Lanzar OCR para el nuevo archivo
+            if instance.mime_type in ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']:
+                # Resetear estado OCR
+                instance.ocr_processed = False
+                instance.ocr_text = ''
+                instance.ocr_confidence = None
+                instance.ocr_status = 'pending'
+                instance.save()
+
+                # Lanzar nueva tarea OCR
+                process_document_ocr.delay(str(instance.id))
+
+        # Actualizar otros campos
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        """PATCH method"""
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
 
     @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def upload(self, request):
@@ -146,6 +219,11 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+        # 🎯 NUEVO: Lanzar tarea OCR automática para PDFs e imágenes
+        if document.mime_type in ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']:
+            # Lanzar tarea Celery asíncrona
+            process_document_ocr.delay(str(document.id))
+
         # Retornar documento creado
         response_serializer = ClinicalDocumentSerializer(document)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -153,7 +231,7 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
         """
-        Descarga el documento (genera URL firmada)
+        Descarga el documento (genera URL firmada con Content-Disposition para forzar descarga)
         """
         document = self.get_object()
 
@@ -161,14 +239,51 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         doc_service = DocumentService()
         doc_service.log_access(document, request.user, 'download', request)
 
-        # Generar URL firmada
+        # Generar URL firmada con force_download=True para forzar descarga
         from .storage import S3Storage
         storage = S3Storage()
-        url = storage.get_presigned_url(document.file_path, expiration=300)  # 5 minutos
+        url = storage.get_presigned_url(
+            document.file_path,
+            expiration=300,  # 5 minutos
+            force_download=True,
+            filename=document.file_name or 'documento'
+        )
 
         if not url:
             return Response(
                 {'error': 'Error al generar URL de descarga'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        return Response({
+            'url': url,
+            'file_name': document.file_name or 'documento'
+        })
+
+    @action(detail=True, methods=['get'])
+    def view(self, request, pk=None):
+        """
+        Obtiene URL para visualizar el documento (sin forzar descarga)
+        Útil para previsualización en navegador
+        """
+        document = self.get_object()
+
+        # Registrar acceso
+        doc_service = DocumentService()
+        doc_service.log_access(document, request.user, 'view', request)
+
+        # Generar URL firmada SIN force_download para permitir visualización
+        from .storage import S3Storage
+        storage = S3Storage()
+        url = storage.get_presigned_url(
+            document.file_path,
+            expiration=3600,  # 1 hora para visualización
+            force_download=False
+        )
+
+        if not url:
+            return Response(
+                {'error': 'Error al generar URL de visualización'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

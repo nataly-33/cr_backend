@@ -224,13 +224,16 @@ REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 BACKUPS_DIR = BASE_DIR / 'media' / 'backups'
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 
-# S3 Configuration (optional for backups)
+# S3 Configuration (always load if available)
 USE_S3_BACKUP = config('USE_S3_BACKUP', default=False, cast=bool)
-if USE_S3_BACKUP:
-    AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
-    AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
-    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
+USE_S3 = config('USE_S3', default=False, cast=bool)
+
+# Cargar credenciales AWS si están configuradas
+AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID', default=None)
+AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY', default=None)
+AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default=None)
+AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
+AWS_TEXTRACT_REGION = config('AWS_TEXTRACT_REGION', default='us-east-1')
 
 # SendGrid Configuration
 SENDGRID_ENABLED = config('SENDGRID_ENABLED', default=False, cast=bool)

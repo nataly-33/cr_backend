@@ -168,6 +168,66 @@ class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def update_fcm_token(self, request):
+        """
+        Actualizar el token FCM (Firebase Cloud Messaging) del usuario.
+        
+        Esto permite que el backend sepa a dónde enviar notificaciones push.
+        
+        Request:
+        {
+            "fcm_token": "dE7X8Y9Z1A2B3C4D5E6F7G8H..."
+        }
+        
+        Response:
+        {
+            "success": true,
+            "message": "Token FCM actualizado exitosamente"
+        }
+        """
+        fcm_token = request.data.get('fcm_token')
+        
+        if not fcm_token:
+            return Response(
+                {'error': 'fcm_token es requerido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(fcm_token) < 10:
+            return Response(
+                {'error': 'fcm_token inválido (muy corto)'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Actualizar el token
+        request.user.fcm_token = fcm_token
+        request.user.save(update_fields=['fcm_token', 'updated_at'])
+        
+        return Response({
+            'success': True,
+            'message': 'Token FCM actualizado exitosamente'
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def delete_fcm_token(self, request):
+        """
+        Eliminar el token FCM del usuario (logout).
+        
+        Response:
+        {
+            "success": true,
+            "message": "Token FCM eliminado"
+        }
+        """
+        request.user.fcm_token = None
+        request.user.save(update_fields=['fcm_token', 'updated_at'])
+        
+        return Response({
+            'success': True,
+            'message': 'Token FCM eliminado'
+        }, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'])
     def change_password(self, request, pk=None):
         """Cambiar contraseña del usuario"""

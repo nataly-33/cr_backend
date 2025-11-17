@@ -194,6 +194,14 @@ class DocumentService:
             bool indicando éxito
         """
         try:
+            # Calcular hash del archivo ANTES de subirlo
+            file_obj.seek(0)
+            file_content = file_obj.read()
+            file_hash = document_instance.calculate_file_hash(file_content)
+            
+            # Volver al inicio del archivo para subirlo
+            file_obj.seek(0)
+            
             # Generar path único en S3
             file_extension = file_obj.name.split('.')[-1]
             file_path = f"documents/{document_instance.tenant_id}/{document_instance.id}.{file_extension}"
@@ -209,17 +217,12 @@ class DocumentService:
             document_instance.file_name = file_obj.name
             document_instance.file_size_bytes = file_obj.size
             document_instance.mime_type = file_obj.content_type
-
-            # Calcular hash del archivo
-            file_obj.seek(0)
-            file_content = file_obj.read()
-            document_instance.file_hash = document_instance.calculate_file_hash(file_content)
+            document_instance.file_hash = file_hash
 
             document_instance.save()
 
-            # Procesar OCR si es PDF o imagen
-            if file_obj.content_type in ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']:
-                self.process_ocr_async(document_instance)
+            # ⚠️ NO procesar OCR aquí - se hace en la tarea Celery
+            # El OCR se lanza desde el view después del upload exitoso
 
             return True
 
@@ -227,37 +230,15 @@ class DocumentService:
             logger.error(f"Error uploading document: {str(e)}")
             return False
 
+    # DEPRECATED: Ya no usar este método, usar la tarea Celery directamente
     def process_ocr_async(self, document_instance):
         """
-        Procesa OCR de forma asíncrona
-        Por ahora lo hace síncrono, más adelante usar Celery
+        DEPRECATED: Este método ya no se usa.
+        El OCR ahora se procesa con la tarea Celery process_document_ocr
+        que se lanza desde el ViewSet después del upload.
         """
-        # Solo procesar OCR si AWS está configurado
-        if not self.ocr_service.use_textract:
-            logger.info("OCR processing skipped (AWS not configured)")
-            return
-            
-        try:
-            bucket = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', None)
-            if not bucket:
-                logger.info("OCR processing skipped (S3 bucket not configured)")
-                return
-                
-            file_path = document_instance.file_path
-
-            result = self.ocr_service.extract_text_from_s3(bucket, file_path)
-
-            if result['success']:
-                document_instance.ocr_text = result['text']
-                document_instance.ocr_confidence = result['confidence']
-                document_instance.ocr_processed = True
-                document_instance.ocr_job_id = result['job_id']
-                document_instance.save()
-
-                logger.info(f"OCR processed successfully for document {document_instance.id}")
-
-        except Exception as e:
-            logger.error(f"Error processing OCR: {str(e)}")
+        logger.warning("process_ocr_async is deprecated. Use Celery task instead.")
+        pass
 
     def log_access(self, document, user, access_type, request):
         """

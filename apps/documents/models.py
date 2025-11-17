@@ -134,6 +134,19 @@ class ClinicalDocument(TenantAwareModel):
         verbose_name=_('AWS Textract Job ID')
     )
 
+    ocr_status = models.CharField(
+        max_length=50,
+        choices=[
+            ('pending', 'Pendiente'),
+            ('processing', 'Procesando'),
+            ('async_processing', 'Procesando (Asíncrono)'),
+            ('completed', 'Completado'),
+            ('failed', 'Fallido'),
+        ],
+        default='pending',
+        verbose_name=_('Estado del OCR')
+    )
+
     # Estado
     is_signed = models.BooleanField(
         default=False,

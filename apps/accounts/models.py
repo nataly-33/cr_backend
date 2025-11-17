@@ -166,6 +166,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name=_('Secret 2FA')
     )
 
+    # Firebase Cloud Messaging (Notificaciones Push)
+    fcm_token = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name=_('Token FCM (Firebase)')
+    )
+
     # Timestamps
     last_login = models.DateTimeField(
         null=True,
