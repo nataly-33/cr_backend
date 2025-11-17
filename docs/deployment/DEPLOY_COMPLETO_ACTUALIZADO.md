@@ -564,7 +564,7 @@ STRIPE_WEBHOOK_SECRET=whsec_XXXXXX
 
 1. Ir a: https://dashboard.stripe.com/test/webhooks
 2. Click "Add endpoint"
-3. Endpoint URL: `http://52.0.69.138:8000/api/payments/stripe-webhook/`
+3. Endpoint URL: `http://52.44.135.19:8000/api/payments/stripe-webhook/`
 4. Eventos a escuchar:
    - `checkout.session.completed`
    - `customer.subscription.created`
@@ -591,7 +591,7 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-ExecStart=/usr/local/bin/stripe listen --forward-to http://52.0.69.138:8000/api/payments/stripe-webhook/
+ExecStart=/usr/local/bin/stripe listen --forward-to http://52.44.135.19:8000/api/payments/stripe-webhook/
 Restart=on-failure
 
 [Install]
@@ -693,18 +693,12 @@ server {
         expires 7d;
     }
 
-    # Frontend (React/Vite)
+    # Frontend estático (dist/)
     location / {
-        proxy_pass http://127.0.0.1:5173;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket support (para Vite HMR)
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        alias /home/ubuntu/clinic_records/cr_frontend/dist/;
+        try_files $uri $uri/ /index.html;
+        expires 30d;
+        add_header Cache-Control "public, max-age=31536000";
     }
 }
 ```
@@ -758,8 +752,8 @@ nano .env.production
 **Contenido:**
 
 ```bash
-VITE_API_URL=http://52.0.69.138/api
-VITE_STRIPE_PUBLIC_KEY=pk_test_XXXXXX
+VITE_API_URL=http://52.44.135.19/api
+VITE_STRIPE_PUBLIC_KEY=pk_test_51SPvHnB9CSL2K2sMDcvqnyIW0qGs3XSBj8nQEHBmvPUdKf55b59AdVtrhf2bVnuFnlwESQ7iaSY1X7kT8J93qFCx00NGhYA10W
 VITE_FIREBASE_CONFIG='{"apiKey":"...","projectId":"..."}'
 ```
 
