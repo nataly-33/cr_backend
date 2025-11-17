@@ -40,3 +40,10 @@ runserver.bat
 runserver.ps1
 .psi
 .bat
+
+# Celery Beat persistent files (no subir al repo)
+celerybeat-schedule
+celerybeat-schedule.*
+*.bak
+*.dat
+*.dir
