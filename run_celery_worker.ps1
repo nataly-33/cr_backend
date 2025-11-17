@@ -1,6 +1,13 @@
 # Script para ejecutar Celery Worker en Windows (PowerShell)
 # Uso: .\run_celery_worker.ps1
 
+# Cambiar a la carpeta del script (importante para que Python encuentre el módulo 'config')
+if ($PSScriptRoot) {
+    Set-Location $PSScriptRoot
+} else {
+    Set-Location (Split-Path -Parent $MyInvocation.MyCommand.Path)
+}
+
 Write-Host "================================" -ForegroundColor Cyan
 Write-Host "Iniciando Celery Worker..." -ForegroundColor Green
 Write-Host "================================" -ForegroundColor Cyan

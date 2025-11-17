@@ -1,6 +1,13 @@
 # Script para ejecutar Celery Beat en Windows (PowerShell)
 # Uso: .\run_celery_beat.ps1
 
+# Cambiar a la carpeta del script (importante para que Python encuentre el módulo 'config')
+if ($PSScriptRoot) {
+    Set-Location $PSScriptRoot
+} else {
+    Set-Location (Split-Path -Parent $MyInvocation.MyCommand.Path)
+}
+
 Write-Host "================================" -ForegroundColor Cyan
 Write-Host "Iniciando Celery Beat (Scheduler)..." -ForegroundColor Green
 Write-Host "================================" -ForegroundColor Cyan
@@ -30,3 +37,4 @@ Write-Host ""
 celery -A config beat `
     --loglevel=info `
     --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
