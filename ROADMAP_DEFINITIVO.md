@@ -614,7 +614,7 @@ pip install realesrgan
    # AWS Credentials
    AWS_ACCESS_KEY_ID=AKIA...
    AWS_SECRET_ACCESS_KEY=...
-   AWS_STORAGE_BUCKET_NAME=clinidocs-documents
+   AWS_STORAGE_BUCKET_NAME=clinidocs-files-2025
    AWS_S3_REGION_NAME=us-east-1
 
    # OCR

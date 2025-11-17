@@ -79,6 +79,17 @@ app.conf.beat_schedule = {
             'priority': 5,
         },
     },
+    
+    # ========== OCR (DOCUMENTOS) ==========
+    'verificar-ocr-asincrono': {
+        'task': 'apps.documents.tasks.check_async_ocr_jobs',
+        'schedule': crontab(minute='*/10'),  # Cada 10 minutos
+        'options': {
+            'expires': 300,
+            'queue': 'celery',
+            'priority': 7,
+        },
+    },
 }
 
 # ============================================================================
