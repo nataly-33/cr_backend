@@ -7,6 +7,8 @@ from apps.core.models import Tenant
 from apps.accounts.models import User, Role
 from apps.accounts.constants import SystemRoles
 from .models import TenantRegistration, SubscriptionPlan
+from django.db import transaction
+from apps.payments.models import Payment, Invoice, PaymentAudit, PaymentStatus, InvoiceStatus
 
 
 class TenantRegistrationService:
@@ -216,6 +218,59 @@ class TenantRegistrationService:
         registration.status = 'activated'
         registration.activated_at = timezone.now()
         registration.save()
+
+        # Crear registros de pago y factura asociados al tenant recién creado
+        try:
+            with transaction.atomic():
+                # Solo si tenemos un payment_intent_id o payment_amount
+                if registration.payment_amount:
+                    payment = Payment.objects.create(
+                        tenant=tenant,
+                        subscription_plan=registration.selected_plan,
+                        amount=registration.payment_amount,
+                        # currency usa el default del modelo ('USD') si no se especifica
+                        status=PaymentStatus.COMPLETED,
+                        stripe_payment_intent_id=registration.payment_intent_id or None,
+                        paid_at=timezone.now(),
+                        metadata={
+                            'registration_id': str(registration.id),
+                        }
+                    )
+
+                    invoice_number = f"REG-{registration.id}-{timezone.now().strftime('%Y%m%d')}"
+                    invoice = Invoice.objects.create(
+                        tenant=tenant,
+                        payment=payment,
+                        subscription_plan=registration.selected_plan,
+                        invoice_number=invoice_number,
+                        subtotal=registration.payment_amount,
+                        tax_amount=0,
+                        total=registration.payment_amount,
+                        description=f'{registration.selected_plan.name} - Suscripción para {registration.tenant_name}',
+                        line_items=[{
+                            'description': registration.selected_plan.name,
+                            'quantity': 1,
+                            'amount': float(registration.payment_amount),
+                        }],
+                        issue_date=timezone.now().date(),
+                        status=InvoiceStatus.PAID,
+                        paid_at=timezone.now(),
+                    )
+
+                    PaymentAudit.objects.create(
+                        tenant=tenant,
+                        payment=payment,
+                        action='completed',
+                        detail=f'Pago de registro completado - {registration.tenant_name}',
+                        webhook_event_id=registration.payment_intent_id or '',
+                        webhook_data={
+                            'registration_id': str(registration.id)
+                        }
+                    )
+
+                    logger.info(f"[ACTIVATE] Payment {payment.id} y factura {invoice.invoice_number} creados para tenant_id={tenant.id}")
+        except Exception:
+            logger.exception("[ACTIVATE] Error creando registros de pago/factura para el tenant. Continuando activación.")
 
         logger.info(f"[ACTIVATE] ✅ Registro actualizado a 'activated'")
         logger.info(f"[ACTIVATE] ✅✅✅ ACTIVACIÓN COMPLETADA EXITOSAMENTE")

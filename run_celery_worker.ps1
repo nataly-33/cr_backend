@@ -23,18 +23,21 @@ if ($null -eq $env:VIRTUAL_ENV) {
     & ".\venv\Scripts\Activate.ps1"
 }
 
+# Variables de entorno ya se cargan desde config/celery.py con python-dotenv
+Write-Host "Variables de entorno se cargan desde .env via python-dotenv" -ForegroundColor Yellow
+
 # Información
 Write-Host "Configuración:" -ForegroundColor Cyan
 Write-Host "  - Broker: redis://localhost:6379/0"
 Write-Host "  - Backend: redis://localhost:6379/0"
 Write-Host "  - Colas: celery, backups, notifications"
-Write-Host "  - Workers: 4"
+Write-Host "  - Pool: solo (optimizado para Windows)"
 Write-Host ""
 
-# Ejecutar worker
+# Ejecutar worker con pool 'solo' para Windows (evita errores de multiprocessing)
 celery -A config worker `
     --loglevel=info `
-    --concurrency=4 `
+    --pool=solo `
     --queues=celery,backups,notifications `
     --time-limit=3600 `
     --soft-time-limit=3000
