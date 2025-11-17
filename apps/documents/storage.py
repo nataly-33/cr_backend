@@ -104,26 +104,34 @@ class S3Storage:
                 logger.error(f"Error deleting file from local storage: {str(e)}")
                 return False
 
-    def get_presigned_url(self, file_path, expiration=3600):
+    def get_presigned_url(self, file_path, expiration=3600, force_download=False, filename=None):
         """
         Genera una URL firmada para acceso temporal al archivo (S3)
         o URL local (almacenamiento local)
-        
+
         Args:
             file_path: Ruta del archivo
             expiration: Tiempo de expiración en segundos (solo para S3)
-            
+            force_download: Si True, fuerza descarga en lugar de visualización
+            filename: Nombre del archivo para descarga (solo si force_download=True)
+
         Returns:
             URL del archivo o None si falla
         """
         if self.use_s3:
             try:
+                params = {
+                    'Bucket': self.bucket_name,
+                    'Key': file_path
+                }
+
+                # Si se debe forzar descarga, agregar Content-Disposition
+                if force_download and filename:
+                    params['ResponseContentDisposition'] = f'attachment; filename="{filename}"'
+
                 url = self.s3_client.generate_presigned_url(
                     'get_object',
-                    Params={
-                        'Bucket': self.bucket_name,
-                        'Key': file_path
-                    },
+                    Params=params,
                     ExpiresIn=expiration
                 )
                 return url
