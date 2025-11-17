@@ -14,6 +14,10 @@ from celery import Celery
 from celery.schedules import crontab
 from celery.signals import task_prerun, task_postrun, task_failure
 
+# Cargar variables de entorno desde .env ANTES de cualquier otra cosa
+from dotenv import load_dotenv
+load_dotenv()
+
 # Set Django settings module
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.development')
 
@@ -34,6 +38,20 @@ app.conf.task_track_started = True
 app.conf.task_acks_late = True
 app.conf.worker_prefetch_multiplier = 4
 app.conf.worker_max_tasks_per_child = 1000
+
+# ============================================================================
+# CONFIGURACIÓN PARA WINDOWS - Usar threads en lugar de procesos
+# ============================================================================
+import platform
+if platform.system() == 'Windows':
+    # En Windows, usar solo threads (gevent o solo) en lugar de procesos (prefork)
+    # Esto evita los errores de PermissionError con billiard
+    app.conf.worker_pool = 'solo'  # Solo un worker, sin multiprocessing
+    app.conf.worker_concurrency = 1
+    # Alternativa: usar 'gevent' si lo tienes instalado
+    # app.conf.worker_pool = 'gevent'
+    # app.conf.worker_concurrency = 10
+
 
 # ============================================================================
 # BEAT SCHEDULE - TAREAS PROGRAMADAS
