@@ -105,6 +105,10 @@ def handle_checkout_session_completed(session):
     """
     Manejar el evento checkout.session.completed de Stripe.
     
+    Soporta 2 flujos:
+    1. Pago de suscripción existente (tenant_id + plan_id)
+    2. Pago de registro público (registration_id)
+    
     Args:
         session: Datos de la sesión de Stripe
     
@@ -112,22 +116,41 @@ def handle_checkout_session_completed(session):
         dict: {'success': True/False, 'data': {...}}
     """
     try:
-        tenant_id = session.get('metadata', {}).get('tenant_id')
-        plan_id = session.get('metadata', {}).get('plan_id')
+        metadata = session.get('metadata', {})
+        registration_id = metadata.get('registration_id')
+        tenant_id = metadata.get('tenant_id')
+        plan_id = metadata.get('plan_id')
         
-        if not tenant_id or not plan_id:
-            raise Exception('Metadata incompleta en sesión')
+        # Caso 1: Registro público (nuevo tenant)
+        if registration_id:
+            return {
+                'success': True,
+                'type': 'registration',
+                'registration_id': int(registration_id),
+                'amount': session.get('amount_total') / 100,  # Convertir de centavos
+                'currency': session.get('currency', 'usd').upper(),
+                'stripe_session_id': session.get('id'),
+                'stripe_payment_intent_id': session.get('payment_intent'),
+                'stripe_customer_id': session.get('customer'),
+            }
         
-        return {
-            'success': True,
-            'tenant_id': tenant_id,
-            'plan_id': plan_id,
-            'amount': session.get('amount_total') / 100,  # Convertir de centavos
-            'currency': session.get('currency', 'usd').upper(),
-            'stripe_session_id': session.get('id'),
-            'stripe_payment_intent_id': session.get('payment_intent'),
-            'stripe_customer_id': session.get('customer'),
-        }
+        # Caso 2: Pago de suscripción existente
+        elif tenant_id and plan_id:
+            return {
+                'success': True,
+                'type': 'subscription',
+                'tenant_id': tenant_id,
+                'plan_id': plan_id,
+                'amount': session.get('amount_total') / 100,
+                'currency': session.get('currency', 'usd').upper(),
+                'stripe_session_id': session.get('id'),
+                'stripe_payment_intent_id': session.get('payment_intent'),
+                'stripe_customer_id': session.get('customer'),
+            }
+        
+        else:
+            raise Exception('Metadata incompleta en sesión (falta registration_id o tenant_id)')
+        
     except Exception as e:
         return {
             'success': False,
