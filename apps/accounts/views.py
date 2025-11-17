@@ -165,6 +165,7 @@ class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         Actualizar el token FCM (Firebase Cloud Messaging) del usuario.
         
         Esto permite que el backend sepa a dónde enviar notificaciones push.
+        Automáticamente, el sistema enviará notificaciones a este dispositivo.
         
         Request:
         {
@@ -174,8 +175,15 @@ class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         Response:
         {
             "success": true,
-            "message": "Token FCM actualizado exitosamente"
+            "message": "Token FCM actualizado exitosamente",
+            "user_id": "uuid",
+            "token_length": 152
         }
+        
+        IMPORTANTE: 
+        - No es necesario modificar nada cuando Luis envíe el token
+        - El sistema automaticamente enviará push a este token cuando exista
+        - Si no hay token, las notificaciones se guardan solo en BD (in-app)
         """
         fcm_token = request.data.get('fcm_token')
         
@@ -192,31 +200,53 @@ class UserViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
             )
         
         # Actualizar el token
+        old_token = request.user.fcm_token
         request.user.fcm_token = fcm_token
         request.user.save(update_fields=['fcm_token', 'updated_at'])
         
         return Response({
             'success': True,
-            'message': 'Token FCM actualizado exitosamente'
+            'message': 'Token FCM actualizado exitosamente',
+            'user_id': str(request.user.id),
+            'user_email': request.user.email,
+            'token_updated': old_token != fcm_token,
+            'token_length': len(fcm_token),
         }, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=False, methods=['post', 'delete'], permission_classes=[permissions.IsAuthenticated])
     def delete_fcm_token(self, request):
         """
-        Eliminar el token FCM del usuario (logout).
+        Eliminar el token FCM del usuario (logout/sign-out de push).
+        
+        Acepta POST o DELETE (ambos funcionan igual).
+        
+        Responses:
+        - POST /delete_fcm_token/  → 200 OK
+        - DELETE /delete_fcm_token/ → 200 OK
         
         Response:
         {
             "success": true,
-            "message": "Token FCM eliminado"
+            "message": "Token FCM eliminado",
+            "user_id": "uuid"
         }
+        
+        IMPORTANTE:
+        - Llamar cuando el usuario cierra sesión
+        - También cuando desinstala la app
+        - Evita que otros reciban notificaciones en este dispositivo
         """
+        had_token = bool(request.user.fcm_token)
+        
         request.user.fcm_token = None
         request.user.save(update_fields=['fcm_token', 'updated_at'])
         
         return Response({
             'success': True,
-            'message': 'Token FCM eliminado'
+            'message': 'Token FCM eliminado',
+            'user_id': str(request.user.id),
+            'user_email': request.user.email,
+            'had_token': had_token,
         }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])

@@ -127,7 +127,14 @@ def send_notification_push(self, notification_id: str) -> Dict[str, Any]:
     """
     Enviar notificación push (Firebase Cloud Messaging).
     
-    Pendiente de implementación completa (requiere Firebase config).
+    Flujo:
+    1. Obtiene la notificación de BD
+    2. Si user tiene fcm_token → envía a Firebase
+    3. Si no tiene token → solo registra en BD (in-app)
+    4. Reintentos automáticos si falla
+    
+    IMPORTANTE: Los datos van al request.user automáticamente del endpoint,
+    no es necesario modificar nada cuando Luis envíe el token.
     """
     try:
         notification = Notification.objects.get(id=notification_id)
@@ -136,30 +143,93 @@ def send_notification_push(self, notification_id: str) -> Dict[str, Any]:
         return {'success': False, 'error': 'Notification not found'}
     
     try:
-        # TODO: Implementar integración con Firebase Cloud Messaging
-        # Por ahora, solo log simulado
-        logger.info(f"[TODO] Push notification for {notification.user.email}: {notification.title}")
+        # 1️⃣ Verificar si el usuario tiene FCM token
+        if not notification.user.fcm_token:
+            logger.info(
+                f"⏭️ No FCM token for {notification.user.email} - "
+                f"Notification saved in-app only"
+            )
+            notification.mark_as_sent()
+            return {
+                'success': True,
+                'notification_id': str(notification_id),
+                'message': 'Saved in-app (no FCM token)',
+                'sent_via': 'in_app_only',
+            }
         
-        # Marcar como enviada
+        # 2️⃣ Inicializar Firebase Admin SDK
+        import firebase_admin
+        from firebase_admin import credentials, messaging
+        import json
+        import os
+        
+        # Cargar credenciales
+        cred_json = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY')
+        if not cred_json:
+            raise ValueError("FIREBASE_SERVICE_ACCOUNT_KEY not configured in .env")
+        
+        cred_dict = json.loads(cred_json)
+        cred = credentials.Certificate(cred_dict)
+        
+        # Inicializar (solo si no está)
+        try:
+            firebase_admin.initialize_app(cred)
+        except ValueError:
+            pass  # Ya estaba inicializado
+        
+        # 3️⃣ Crear mensaje Firebase
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=notification.title,
+                body=notification.body,
+            ),
+            data={
+                'notification_id': str(notification.id),
+                'type': notification.type,
+                **(notification.data or {})
+            },
+            token=notification.user.fcm_token,
+        )
+        
+        # 4️⃣ Enviar a Firebase
+        response = messaging.send(message)
+        logger.info(
+            f"✅ Push sent to {notification.user.email} - "
+            f"Message ID: {response}"
+        )
+        
+        # 5️⃣ Marcar como enviada
         notification.mark_as_sent()
         
         return {
             'success': True,
             'notification_id': str(notification_id),
-            'message': 'Push notification queued (Firebase not yet configured)',
+            'message_id': response,
+            'sent_via': 'firebase_push',
+            'recipient': notification.user.email,
         }
     
     except Exception as e:
-        logger.exception(f"Error sending push for {notification_id}")
+        logger.warning(f"⚠️ Error sending push for {notification_id}: {e}")
         
+        # Reintentar 3 veces con backoff exponencial
         if self.request.retries < self.max_retries:
-            raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+            countdown = 60 * (2 ** self.request.retries)  # 60s, 120s, 240s
+            logger.info(f"Retrying in {countdown}s (attempt {self.request.retries + 1}/3)")
+            raise self.retry(exc=e, countdown=countdown)
         else:
-            notification.mark_as_failed(f"Push error after retries: {str(e)}")
+            # Falló 3 veces - marcar como fallida pero guardar en BD
+            logger.error(
+                f"❌ Push notification failed permanently for {notification.user.email}"
+            )
+            notification.mark_as_failed(f"Firebase error after 3 retries: {str(e)}")
+            
             return {
                 'success': False,
                 'notification_id': str(notification_id),
                 'error': str(e),
+                'retries_exhausted': True,
+                'fallback': 'saved_in_app',
             }
 
 
