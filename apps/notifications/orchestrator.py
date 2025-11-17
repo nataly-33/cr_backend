@@ -30,6 +30,9 @@ from apps.core.models import Tenant
 
 logger = logging.getLogger(__name__)
 
+# Import Celery tasks for async sending
+from .tasks import send_notification_push, send_notification_email
+
 
 class NotificationOrchestrator:
     """
@@ -57,8 +60,35 @@ class NotificationOrchestrator:
             event['data'].get('doctor_id'),
         ],
         'document.uploaded': lambda event: [
-            event['data'].get('patient_id'),
+            event['data'].get('doctor_id'),  # Solo notificar al doctor
+            # Los admins se agregan automáticamente en _get_admin_user_ids()
+        ],
+        'document.created': lambda event: [
             event['data'].get('doctor_id'),
+        ],
+        'document.updated': lambda event: [
+            event['data'].get('doctor_id'),
+        ],
+        'document.deleted': lambda event: [
+            # Solo admins para eliminaciones
+        ],
+        'clinical_record.created': lambda event: [
+            # Solo admins - notificación informativa
+        ],
+        'clinical_record.updated': lambda event: [
+            # Solo admins - notificación informativa
+        ],
+        'clinical_record.deleted': lambda event: [
+            # Solo admins - CRÍTICO
+        ],
+        'clinical_form.created': lambda event: [
+            # Solo admins - notificación informativa
+        ],
+        'clinical_form.updated': lambda event: [
+            # Solo admins - notificación informativa
+        ],
+        'clinical_form.deleted': lambda event: [
+            # Solo admins - CRÍTICO
         ],
         'inventory.low_stock': lambda event: [
             # Admin TI del tenant
@@ -183,7 +213,9 @@ class NotificationOrchestrator:
                             result['errors'].append(str(e))
                             continue
                         
-                        # Crear notificación
+                        # Crear notificación con event_id único por usuario y canal
+                        unique_event_id = f"{event_id}:{user.id}:{channel}"
+                        
                         notification = Notification.objects.create(
                             tenant=self.tenant,
                             user=user,
@@ -197,7 +229,7 @@ class NotificationOrchestrator:
                                 'color': color,
                                 'actor_id': actor_id,
                             },
-                            event_id=event_id,
+                            event_id=unique_event_id,
                             status=NotificationStatus.QUEUED,
                         )
                         
@@ -214,6 +246,19 @@ class NotificationOrchestrator:
                             f"Notification created: {notification.id} "
                             f"({event_type}/{channel}) for {user.email}"
                         )
+                        
+                        # Encolar tarea de envío en Celery DESPUÉS del commit
+                        notification_id = str(notification.id)
+                        if channel == NotificationChannel.PUSH:
+                            transaction.on_commit(
+                                lambda nid=notification_id: send_notification_push.delay(nid)
+                            )
+                            logger.info(f"Push notification {notification.id} enqueued for sending (on commit)")
+                        elif channel == NotificationChannel.EMAIL:
+                            transaction.on_commit(
+                                lambda nid=notification_id: send_notification_email.delay(nid)
+                            )
+                            logger.info(f"Email notification {notification.id} enqueued for sending (on commit)")
         
         except Exception as e:
             logger.exception(f"Error processing event {event_id}")
@@ -231,8 +276,23 @@ class NotificationOrchestrator:
         
         recipient_ids = rule({'data': data})
         
-        # Filtrar Nones y admin users para eventos del sistema
-        if event_type in ['inventory.low_stock', 'system.alert']:
+        # Agregar admins para eventos que lo requieran
+        events_with_admin = [
+            'inventory.low_stock',
+            'system.alert',
+            'document.uploaded',
+            'document.created',
+            'document.updated',
+            'document.deleted',
+            'clinical_record.created',
+            'clinical_record.updated',
+            'clinical_record.deleted',
+            'clinical_form.created',
+            'clinical_form.updated',
+            'clinical_form.deleted',
+        ]
+        
+        if event_type in events_with_admin:
             admin_ids = self._get_admin_user_ids()
             recipient_ids = [id for id in (recipient_ids + admin_ids) if id]
         else:
@@ -251,20 +311,31 @@ class NotificationOrchestrator:
     def _get_admin_user_ids(self) -> List[int]:
         """Obtener IDs de usuarios Admin TI del tenant."""
         try:
-            # Buscar rol 'Administrador' o 'Admin TI'
+            # Buscar cualquier rol que contenga 'Administrador' o 'Admin'
             from apps.accounts.models import Role
-            admin_role = Role.objects.filter(
-                tenant=self.tenant,
-                name__in=['Administrador', 'Admin TI']
-            ).first()
+            from django.db.models import Q
             
-            if not admin_role:
+            admin_roles = Role.objects.filter(
+                tenant=self.tenant
+            ).filter(
+                Q(name__icontains='Administrador') | 
+                Q(name__icontains='Admin')
+            )
+            
+            if not admin_roles.exists():
+                logger.warning(f"No se encontraron roles de administrador en tenant {self.tenant.id}")
                 return []
             
             user_ids = list(
-                User.objects.filter(role=admin_role).values_list('id', flat=True)
+                User.objects.filter(
+                    role__in=admin_roles,
+                    is_active=True
+                ).values_list('id', flat=True)
             )
+            
+            logger.info(f"Encontrados {len(user_ids)} administradores en tenant {self.tenant.name}")
             return user_ids
+            
         except Exception as e:
             logger.error(f"Error getting admin user IDs: {e}")
             return []

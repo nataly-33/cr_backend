@@ -164,6 +164,108 @@ NOTIFICATION_TEMPLATES = {
         icon='alert-circle',
         color='red',
     ),
+    
+    # Documentos CRUD
+    'document.created': NotificationTemplate(
+        notification_type='document.created',
+        title_es='📄 Documento creado',
+        body_es='{{actor_name}} creó "{{document_title}}" ({{document_type}}) para {{patient_name}}',
+        title_en='📄 Document created',
+        body_en='{{actor_name}} created "{{document_title}}" ({{document_type}}) for {{patient_name}}',
+        required_variables=['actor_name', 'document_title', 'document_type', 'patient_name'],
+        icon='file-plus',
+        color='green',
+    ),
+    
+    'document.updated': NotificationTemplate(
+        notification_type='document.updated',
+        title_es='📝 Documento actualizado',
+        body_es='{{actor_name}} actualizó "{{document_title}}" ({{document_type}}) de {{patient_name}}',
+        title_en='📝 Document updated',
+        body_en='{{actor_name}} updated "{{document_title}}" ({{document_type}}) for {{patient_name}}',
+        required_variables=['actor_name', 'document_title', 'document_type', 'patient_name'],
+        icon='edit',
+        color='blue',
+    ),
+    
+    'document.deleted': NotificationTemplate(
+        notification_type='document.deleted',
+        title_es='🗑️ Documento eliminado',
+        body_es='⚠️ {{actor_name}} eliminó "{{document_title}}" ({{document_type}}) de {{patient_name}}',
+        title_en='🗑️ Document deleted',
+        body_en='⚠️ {{actor_name}} deleted "{{document_title}}" ({{document_type}}) for {{patient_name}}',
+        required_variables=['actor_name', 'document_title', 'document_type', 'patient_name'],
+        icon='trash-2',
+        color='red',
+    ),
+    
+    # Clinical Records CRUD
+    'clinical_record.created': NotificationTemplate(
+        notification_type='clinical_record.created',
+        title_es='📋 Historia clínica creada',
+        body_es='{{actor_name}} creó la historia clínica #{{record_number}} para {{patient_name}}',
+        title_en='📋 Clinical record created',
+        body_en='{{actor_name}} created clinical record #{{record_number}} for {{patient_name}}',
+        required_variables=['actor_name', 'record_number', 'patient_name'],
+        icon='clipboard',
+        color='green',
+    ),
+    
+    'clinical_record.updated': NotificationTemplate(
+        notification_type='clinical_record.updated',
+        title_es='📝 Historia clínica actualizada',
+        body_es='{{actor_name}} actualizó la historia #{{record_number}} de {{patient_name}} ({{status}})',
+        title_en='📝 Clinical record updated',
+        body_en='{{actor_name}} updated record #{{record_number}} for {{patient_name}} ({{status}})',
+        required_variables=['actor_name', 'record_number', 'patient_name', 'status'],
+        icon='edit-3',
+        color='blue',
+    ),
+    
+    'clinical_record.deleted': NotificationTemplate(
+        notification_type='clinical_record.deleted',
+        title_es='🚨 Historia clínica eliminada',
+        body_es='⚠️ CRÍTICO: {{actor_name}} eliminó la historia #{{record_number}} de {{patient_name}}',
+        title_en='🚨 Clinical record deleted',
+        body_en='⚠️ CRITICAL: {{actor_name}} deleted record #{{record_number}} for {{patient_name}}',
+        required_variables=['actor_name', 'record_number', 'patient_name'],
+        icon='alert-octagon',
+        color='red',
+    ),
+    
+    # Clinical Forms CRUD
+    'clinical_form.created': NotificationTemplate(
+        notification_type='clinical_form.created',
+        title_es='📝 Formulario clínico creado',
+        body_es='{{actor_name}} creó un formulario {{form_type}} para {{patient_name}} (HC: {{clinical_record}})',
+        title_en='📝 Clinical form created',
+        body_en='{{actor_name}} created a {{form_type}} form for {{patient_name}} (CR: {{clinical_record}})',
+        required_variables=['actor_name', 'form_type', 'patient_name', 'clinical_record'],
+        icon='file-text',
+        color='green',
+    ),
+    
+    'clinical_form.updated': NotificationTemplate(
+        notification_type='clinical_form.updated',
+        title_es='✏️ Formulario clínico actualizado',
+        body_es='{{actor_name}} actualizó el formulario {{form_type}} de {{patient_name}}',
+        title_en='✏️ Clinical form updated',
+        body_en='{{actor_name}} updated the {{form_type}} form for {{patient_name}}',
+        required_variables=['actor_name', 'form_type', 'patient_name'],
+        icon='edit',
+        color='blue',
+    ),
+    
+    'clinical_form.deleted': NotificationTemplate(
+        notification_type='clinical_form.deleted',
+        title_es='🗑️ Formulario clínico eliminado',
+        body_es='⚠️ {{actor_name}} eliminó el formulario {{form_type}} de {{patient_name}} (HC: {{clinical_record}})',
+        title_en='🗑️ Clinical form deleted',
+        body_en='⚠️ {{actor_name}} deleted the {{form_type}} form for {{patient_name}} (CR: {{clinical_record}})',
+        required_variables=['actor_name', 'form_type', 'patient_name', 'clinical_record'],
+        icon='x-square',
+        color='red',
+    ),
 }
 
 
