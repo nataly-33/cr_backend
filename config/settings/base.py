@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'django_celery_beat',
     'django_celery_results',
+    'crum', 
 
     # Local apps
     'apps.core',
@@ -66,6 +67,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'crum.CurrentRequestUserMiddleware',  
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
@@ -239,9 +241,11 @@ REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 BACKUPS_DIR = BASE_DIR / 'media' / 'backups'
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 
-# S3 Configuration (always load if available)
-USE_S3_BACKUP = config('USE_S3_BACKUP', default=False, cast=bool)
+# ============================================================================
+# AWS S3 Y TEXTRACT - Storage y OCR
+# ============================================================================
 USE_S3 = config('USE_S3', default=False, cast=bool)
+USE_S3_BACKUP = config('USE_S3_BACKUP', default=False, cast=bool)
 
 # Cargar credenciales AWS si están configuradas
 AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID', default=None)
@@ -249,8 +253,23 @@ AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY', default=None)
 AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default=None)
 AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
 AWS_TEXTRACT_REGION = config('AWS_TEXTRACT_REGION', default='us-east-1')
+ENABLE_OCR = config('ENABLE_OCR', default=False, cast=bool)
 
-# SendGrid Configuration
+# Configuración S3 (se aplica si USE_S3=True en cualquier ambiente)
+if USE_S3 or USE_S3_BACKUP:
+    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com' if AWS_STORAGE_BUCKET_NAME else None
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = 'private'
+    AWS_S3_OBJECT_PARAMETERS = {
+        'CacheControl': 'max-age=86400',
+    }
+    AWS_S3_VERIFY = True
+    AWS_QUERYSTRING_AUTH = True
+    AWS_QUERYSTRING_EXPIRE = 3600
+
+# ============================================================================
+# EMAIL - SendGrid
+# ============================================================================
 SENDGRID_ENABLED = config('SENDGRID_ENABLED', default=False, cast=bool)
 
 if SENDGRID_ENABLED:
@@ -261,21 +280,29 @@ if SENDGRID_ENABLED:
     EMAIL_HOST_USER = 'apikey' 
     EMAIL_HOST_PASSWORD = config('SENDGRID_API_KEY')
     DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@clinidocs.com')
+    SERVER_EMAIL = DEFAULT_FROM_EMAIL
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@localhost')
 
-# URLs para emails
+# ============================================================================
+# STRIPE - Pagos y Suscripciones
+# ============================================================================
+STRIPE_ENABLED = config('STRIPE_ENABLED', default=False, cast=bool)
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
+
+# ============================================================================
+# FIREBASE - Notificaciones Push
+# ============================================================================
+FIREBASE_SERVER_KEY = config('FIREBASE_SERVER_KEY', default='')
+
+# ============================================================================
+# FRONTEND Y URLS
+# ============================================================================
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
 BASE_DOMAIN = config('BASE_DOMAIN', default='localhost')
-
-# ============================================================================
-# STRIPE - PAGOS Y FACTURACIÓN
-# ============================================================================
-
-STRIPE_PUBLIC_KEY = config('STRIPE_PUBLIC_KEY', default='')
-STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
-STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 
 # ============================================================================
 # LOGGING

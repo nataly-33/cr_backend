@@ -370,3 +370,137 @@ def check_subdomain_availability(request):
         'available': True,
         'message': 'Subdominio disponible'
     })
+
+
+@extend_schema(
+    request=None,
+    responses={
+        200: OpenApiResponse(
+            description="Sesión de Stripe creada exitosamente",
+            response={
+                'type': 'object',
+                'properties': {
+                    'checkout_url': {'type': 'string'},
+                    'session_id': {'type': 'string'},
+                }
+            }
+        ),
+        400: OpenApiResponse(description="Datos inválidos"),
+        404: OpenApiResponse(description="Registro no encontrado"),
+    },
+    summary="Crear sesión de Stripe Checkout",
+    description="Crea una sesión de Stripe Checkout para pagar la suscripción del tenant",
+    tags=['Public - Registro']
+)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def public_create_checkout_session(request):
+    """
+    API PÚBLICA para crear sesión de Stripe Checkout
+    
+    Esta es la 2da parte del flujo:
+    1. Crear registro con public_register_tenant
+    2. Crear sesión de Stripe con este endpoint
+    3. Usuario paga en Stripe
+    4. Webhook activa el tenant
+    """
+    import stripe
+    from django.conf import settings
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        data = request.data
+        registration_id = data.get('registration_id')
+        plan_id = data.get('plan_id')
+        billing_cycle = data.get('billing_cycle', 'monthly')
+        
+        if not all([registration_id, plan_id]):
+            return Response(
+                {'error': 'Faltan parámetros requeridos: registration_id, plan_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obtener el registro
+        try:
+            registration = TenantRegistration.objects.get(id=registration_id)
+        except TenantRegistration.DoesNotExist:
+            return Response(
+                {'error': 'Registro no encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verificar que sea un registro pendiente de pago
+        if registration.status != 'pending_payment':
+            return Response(
+                {'error': f'El registro no está en estado de pago. Estado actual: {registration.status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obtener el plan
+        try:
+            plan = SubscriptionPlan.objects.get(id=plan_id, is_active=True)
+        except SubscriptionPlan.DoesNotExist:
+            return Response(
+                {'error': 'Plan no encontrado o no disponible'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Configurar Stripe
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        
+        # Determinar el precio según el ciclo
+        if billing_cycle == 'annual':
+            amount_cents = int(plan.annual_price * 100)  # Convertir a centavos
+        else:
+            amount_cents = int(plan.monthly_price * 100)
+        
+        # Crear sesión de Stripe Checkout
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            mode='payment',
+            line_items=[
+                {
+                    'price_data': {
+                        'currency': 'usd',
+                        'product_data': {
+                            'name': f'{plan.name} - {registration.tenant_name}',
+                            'description': f'Suscripción a {plan.name} para {registration.tenant_name}',
+                        },
+                        'unit_amount': amount_cents,
+                    },
+                    'quantity': 1,
+                }
+            ],
+            customer_email=registration.admin_email,
+            success_url=f"{settings.FRONTEND_URL}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{settings.FRONTEND_URL}/billing/cancel",
+            metadata={
+                'registration_id': str(registration.id),
+                'tenant_name': registration.tenant_name,
+                'admin_email': registration.admin_email,
+                'billing_cycle': billing_cycle,
+                'plan_id': str(plan_id),
+            }
+        )
+        
+        logger.info(f"[CHECKOUT] Sesión creada para registration_id={registration_id}, session_id={checkout_session.id}")
+        
+        return Response({
+            'checkout_url': checkout_session.url,
+            'session_id': checkout_session.id
+        })
+    
+    except stripe.error.StripeError as e:
+        logger.error(f"[CHECKOUT] Error de Stripe: {str(e)}")
+        return Response(
+            {'error': 'Error al procesar pago', 'detail': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        logger.error(f"[CHECKOUT] Error: {str(e)}", exc_info=True)
+        return Response(
+            {'error': 'Error interno del servidor'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

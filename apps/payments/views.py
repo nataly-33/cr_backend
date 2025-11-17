@@ -167,90 +167,144 @@ class StripeWebhookViewSet(views.APIView):
             )
     
     def _handle_checkout_completed(self, session, event_id):
-        """Manejar checkout.session.completed."""
+        """
+        Manejar checkout.session.completed.
+        
+        Soporta 2 flujos:
+        1. Pago de suscripción existente (tenant_id + plan_id)
+        2. Pago de registro público (registration_id) - ACTIVA el tenant
+        """
         try:
+            from apps.tenants.models import TenantRegistration
+            from apps.tenants.services import TenantRegistrationService
+            
             result = handle_checkout_session_completed(session)
             
             if not result['success']:
                 logger.error(f"Error: {result['error']}")
                 return Response({'error': result['error']}, status=status.HTTP_400_BAD_REQUEST)
             
-            tenant_id = result['tenant_id']
-            plan_id = result['plan_id']
+            payment_type = result.get('type', 'subscription')
             
-            # Obtener tenant y plan
-            tenant = Tenant.objects.get(id=tenant_id)
-            plan = SubscriptionPlan.objects.get(id=plan_id)
-            
-            with transaction.atomic():
-                # Crear pago
-                payment = Payment.objects.create(
-                    tenant=tenant,
-                    subscription_plan=plan,
-                    amount=result['amount'],
-                    currency=result['currency'],
-                    status=PaymentStatus.COMPLETED,
-                    stripe_payment_intent_id=result['stripe_payment_intent_id'],
-                    stripe_session_id=result['stripe_session_id'],
-                    stripe_customer_id=result['stripe_customer_id'],
-                    paid_at=timezone.now(),
-                    metadata={
-                        'event_id': event_id,
-                        'session_data': session,
-                    }
-                )
+            # CASO 1: Pago de registro público (nuevo tenant)
+            if payment_type == 'registration':
+                registration_id = result['registration_id']
+                logger.info(f"[WEBHOOK] Procesando registro público: registration_id={registration_id}")
                 
-                # Crear factura
-                invoice_number = self._generate_invoice_number(tenant)
-                invoice = Invoice.objects.create(
-                    tenant=tenant,
-                    payment=payment,
-                    subscription_plan=plan,
-                    invoice_number=invoice_number,
-                    subtotal=result['amount'],
-                    tax_amount=0,
-                    total=result['amount'],
-                    currency=result['currency'],
-                    description=f'Suscripción a plan {plan.name}',
-                    line_items=[{
-                        'description': plan.name,
-                        'quantity': 1,
-                        'amount': float(result['amount']),
-                    }],
-                    issue_date=timezone.now().date(),
-                    status=InvoiceStatus.PAID,
-                    paid_at=timezone.now(),
-                )
+                try:
+                    registration = TenantRegistration.objects.get(id=registration_id)
+                except TenantRegistration.DoesNotExist:
+                    logger.error(f"Registro no encontrado: {registration_id}")
+                    return Response({'error': 'Registro no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
                 
-                # Actualizar tenant
-                tenant.subscription_plan = plan
-                tenant.subscription_status = 'active'
-                tenant.stripe_customer_id = result['stripe_customer_id']
-                tenant.save(update_fields=['subscription_plan', 'subscription_status', 'stripe_customer_id'])
-                
-                # Crear audit log
-                PaymentAudit.objects.create(
-                    tenant=tenant,
-                    payment=payment,
-                    action='completed',
-                    detail=f'Pago completado via Stripe webhook',
-                    webhook_event_id=event_id,
-                    webhook_data=session,
-                )
-                
-                logger.info(f'Pago {payment.id} y factura {invoice.invoice_number} creados exitosamente')
-                
+                # Para el flujo de registro público NO creamos objetos Tenant-aware (Payment/Invoice)
+                # antes de que exista el tenant. Eso generaba errores porque los modelos
+                # heredan TenantAwareModel y requieren un tenant activo.
+                #
+                # En su lugar: marcamos el registro como pagado, guardamos los IDs de
+                # Stripe y generamos un token de activación. Enviamos el email de
+                # activación fuera de la transacción (on_commit) para evitar enviar
+                # un token que luego sea revertido si ocurre un error.
+                import secrets
+
+                registration.payment_intent_id = result.get('stripe_payment_intent_id')
+                registration.payment_completed_at = timezone.now()
+                registration.status = 'payment_completed'
+                registration.activation_token = secrets.token_urlsafe(32)
+                registration.save()
+
+                # Enviar email después de confirmar commit para que el token exista
+                transaction.on_commit(lambda: TenantRegistrationService.send_activation_email(registration))
+
+                logger.info(f"[WEBHOOK] ✅ Registro {registration_id} marcado como pagado. Email programado a {registration.admin_email}")
+
                 return Response(
                     {
                         'success': True,
-                        'payment_id': str(payment.id),
-                        'invoice_id': str(invoice.id),
+                        'type': 'registration',
+                        'registration_id': registration_id,
                     },
                     status=status.HTTP_200_OK
                 )
+            
+            # CASO 2: Pago de suscripción existente
+            else:
+                tenant_id = result['tenant_id']
+                plan_id = result['plan_id']
+                
+                # Obtener tenant y plan
+                tenant = Tenant.objects.get(id=tenant_id)
+                plan = SubscriptionPlan.objects.get(id=plan_id)
+                
+                with transaction.atomic():
+                    # Crear pago
+                    payment = Payment.objects.create(
+                        tenant=tenant,
+                        subscription_plan=plan,
+                        amount=result['amount'],
+                        currency=result['currency'],
+                        status=PaymentStatus.COMPLETED,
+                        stripe_payment_intent_id=result['stripe_payment_intent_id'],
+                        stripe_session_id=result['stripe_session_id'],
+                        stripe_customer_id=result['stripe_customer_id'],
+                        paid_at=timezone.now(),
+                        metadata={
+                            'event_id': event_id,
+                            'session_data': session,
+                        }
+                    )
+                    
+                    # Crear factura
+                    invoice_number = self._generate_invoice_number(tenant)
+                    invoice = Invoice.objects.create(
+                        tenant=tenant,
+                        payment=payment,
+                        subscription_plan=plan,
+                        invoice_number=invoice_number,
+                        subtotal=result['amount'],
+                        tax_amount=0,
+                        total=result['amount'],
+                        currency=result['currency'],
+                        description=f'Suscripción a plan {plan.name}',
+                        line_items=[{
+                            'description': plan.name,
+                            'quantity': 1,
+                            'amount': float(result['amount']),
+                        }],
+                        issue_date=timezone.now().date(),
+                        status=InvoiceStatus.PAID,
+                        paid_at=timezone.now(),
+                    )
+                    
+                    # Actualizar tenant
+                    tenant.subscription_plan = plan
+                    tenant.subscription_status = 'active'
+                    tenant.stripe_customer_id = result['stripe_customer_id']
+                    tenant.save(update_fields=['subscription_plan', 'subscription_status', 'stripe_customer_id'])
+                    
+                    # Crear audit log
+                    PaymentAudit.objects.create(
+                        tenant=tenant,
+                        payment=payment,
+                        action='completed',
+                        detail=f'Pago completado via Stripe webhook',
+                        webhook_event_id=event_id,
+                        webhook_data=session,
+                    )
+                    
+                    logger.info(f'Pago {payment.id} y factura {invoice.invoice_number} creados exitosamente')
+                    
+                    return Response(
+                        {
+                            'success': True,
+                            'payment_id': str(payment.id),
+                            'invoice_id': str(invoice.id),
+                        },
+                        status=status.HTTP_200_OK
+                    )
         
         except Exception as e:
-            logger.error(f'Error manejando checkout completado: {str(e)}')
+            logger.error(f'Error manejando checkout completado: {str(e)}', exc_info=True)
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

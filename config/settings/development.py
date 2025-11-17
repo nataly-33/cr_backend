@@ -3,7 +3,7 @@ from .base import *
 DEBUG = True
 
 # ALLOWED_HOSTS para desarrollo (incluye dirección del emulador Android)
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2', '0.0.0.0']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2', '0.0.0.0', '192.168.100.7']
 
 # Disable password validation in development
 AUTH_PASSWORD_VALIDATORS = []

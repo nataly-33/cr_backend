@@ -7,6 +7,7 @@ from .views import (
     public_register_tenant,
     public_simulate_payment,
     public_activate_tenant,
+    public_create_checkout_session,
     check_subdomain_availability
 )
 
@@ -21,6 +22,9 @@ public_patterns = [
     path('register/', 
          public_register_tenant, 
          name='public-register'),
+    path('checkout/',
+         public_create_checkout_session,
+         name='public-checkout'),
     path('registrations/<int:registration_id>/simulate-payment/', 
          public_simulate_payment, 
          name='simulate-payment'),
