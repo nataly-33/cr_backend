@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 from datetime import timedelta
 from decouple import config, Csv
@@ -6,6 +7,20 @@ import dj_database_url
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+# Firebase configuration - Load from environment or .env
+def get_firebase_credentials():
+    """Load Firebase credentials from environment variable or .env file"""
+    try:
+        cred_json = config('FIREBASE_SERVICE_ACCOUNT_KEY', default=None)
+        if cred_json:
+            # Si es string JSON, parsearlo
+            if isinstance(cred_json, str):
+                return json.loads(cred_json)
+            return cred_json
+    except Exception as e:
+        print(f"⚠️ Error loading Firebase credentials: {e}")
+    return None
 
 # Security
 SECRET_KEY = config('SECRET_KEY')
