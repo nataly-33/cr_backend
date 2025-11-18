@@ -80,7 +80,9 @@ class TenantRegistration(models.Model):
     payment_completed_at = models.DateTimeField(null=True, blank=True)
     
     # Activación
-    activation_token = models.CharField(max_length=100, unique=True, blank=True)
+    # null=True permite múltiples registros sin token (cuando fallan antes de generarlo)
+    # unique=True solo aplica a tokens no-NULL (evita tokens duplicados válidos)
+    activation_token = models.CharField(max_length=100, unique=True, null=True, blank=True)
     activation_email_sent_at = models.DateTimeField(null=True, blank=True)
     activated_at = models.DateTimeField(null=True, blank=True)
     
