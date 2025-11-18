@@ -23,6 +23,16 @@ from apps.documents.models import ClinicalDocument
 from apps.tenants.models import TenantRegistration, SubscriptionPlan
 from apps.notifications.models import Notification
 from apps.audit.models import AuditLog
+from django.db.models import ProtectedError
+
+# Modelos de pagos (necesarios para poder eliminar tenants y planes)
+try:
+    from apps.payments.models import Payment, Invoice, PaymentAudit
+except Exception:
+    # Si la app de pagos no existe en algún entorno, ignorar la importación
+    Payment = None
+    Invoice = None
+    PaymentAudit = None
 
 
 def confirm_reset():
@@ -75,6 +85,11 @@ def delete_all_data():
         (ClinicalRecord, "Historias clínicas"),
         (Patient, "Pacientes"),
 
+        # 1.5 Pagos y facturación (eliminar antes de planes/tenants)
+        (PaymentAudit, "Audit logs de pagos") if PaymentAudit is not None else None,
+        (Invoice, "Facturas (Invoices)") if Invoice is not None else None,
+        (Payment, "Pagos (Payments)") if Payment is not None else None,
+
         # 2. Usuarios y roles
         (User, "Usuarios"),
         (Role, "Roles"),
@@ -92,21 +107,64 @@ def delete_all_data():
     errors = []
 
     for model, name in models_to_delete:
+        # Saltar entradas None (cuando la app no exista)
+        if model is None:
+            continue
+
         try:
             count = model.objects.count()
-            if count > 0:
-                # Usar _base_manager para evitar problemas con tenants
-                if hasattr(model, '_base_manager'):
-                    model._base_manager.all().delete()
-                else:
-                    model.objects.all().delete()
+            if count == 0:
+                print(f"  ⏭️  {name}: Ya estaba vacío")
+                continue
 
+            # Intento simple de eliminación
+            manager = model._base_manager if hasattr(model, '_base_manager') else model.objects
+            manager_all = manager.all()
+
+            try:
+                manager_all.delete()
                 print(f"  ✅ {name}: {count} registros eliminados")
                 total_deleted += count
-            else:
-                print(f"  ⏭️  {name}: Ya estaba vacío")
+                continue
+            except ProtectedError as pe:
+                # Intentar resolver ProtectedError eliminando los objetos protegidos primero
+                protected = getattr(pe, 'protected_objects', None)
+                print(f"  ⚠️  ProtectedError eliminando {name}: {str(pe)}")
+                if protected:
+                    print(f"    Intentando eliminar {len(protected)} objetos dependientes que protegen {name}...")
+                    for pobj in list(protected):
+                        try:
+                            # intentar borrar el objeto dependiente directamente
+                            pobj.delete()
+                            print(f"      ✅ Eliminado dependiente: {pobj}")
+                        except Exception as e2:
+                            print(f"      ❌ No se pudo eliminar dependiente {pobj}: {e2}")
+
+                    # Reintentar eliminar el modelo actual
+                    try:
+                        manager_all.delete()
+                        print(f"  ✅ {name}: {count} registros eliminados (después de limpiar dependientes)")
+                        total_deleted += count
+                        continue
+                    except Exception as e3:
+                        error_msg = f"  ❌ Error eliminando {name} después de intentar limpiar dependientes: {e3}"
+                        print(error_msg)
+                        errors.append(error_msg)
+                        continue
+                else:
+                    error_msg = f"  ❌ ProtectedError eliminando {name} (sin lista de dependientes): {pe}"
+                    print(error_msg)
+                    errors.append(error_msg)
+                    continue
+            except Exception as e:
+                # Otros errores
+                error_msg = f"  ❌ Error eliminando {name}: {str(e)}"
+                print(error_msg)
+                errors.append(error_msg)
+                continue
+
         except Exception as e:
-            error_msg = f"  ❌ Error eliminando {name}: {str(e)}"
+            error_msg = f"  ❌ Error verificando/eliminando {name}: {str(e)}"
             print(error_msg)
             errors.append(error_msg)
 
