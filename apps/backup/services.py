@@ -14,7 +14,7 @@ class BackupService:
         self.backup_dir = getattr(settings, 'BACKUPS_DIR', settings.MEDIA_ROOT / 'backups')
         os.makedirs(self.backup_dir, exist_ok=True)
 
-        # Configuración S3
+        # Configuración S3 - Usar el MISMO bucket para documentos y backups
         self.use_s3 = getattr(settings, 'USE_S3_BACKUP', False)
         if self.use_s3:
             import boto3
@@ -24,6 +24,7 @@ class BackupService:
                 aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
                 region_name=getattr(settings, 'AWS_S3_REGION_NAME', 'us-east-1')
             )
+            # Los backups irán a la carpeta "backups/" dentro del mismo bucket
             self.s3_bucket = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', None)
     
     def create_backup(self, tenant=None, includes_files=True):

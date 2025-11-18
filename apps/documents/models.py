@@ -109,6 +109,13 @@ class ClinicalDocument(TenantAwareModel):
         help_text=_('Para verificar integridad')
     )
 
+    # Image Enhancement (CLAHE)
+    enhanced_image_path = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name=_('Ruta de imagen mejorada en S3')
+    )
+
     # OCR (AWS Textract)
     ocr_text = models.TextField(
         blank=True,

@@ -1287,3 +1287,215 @@ class QBEViewSet(viewsets.ViewSet):
                 })
         
         return results
+
+
+@extend_schema(tags=['Reports - Dynamic'])
+class DynamicReportsViewSet(viewsets.ViewSet):
+    """
+    ViewSet para reportes dinámicos con Query Builder
+    Permite generar reportes personalizados con filtros seguros
+    """
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['post'], url_path='generate')
+    def generate_dynamic_report(self, request):
+        """
+        Generar reporte dinámico con filtros personalizados
+
+        POST /api/reports/dynamic/generate/
+
+        Body:
+        {
+            "model": "patient",
+            "filters": [
+                {"field": "age", "operator": "gt", "value": 18},
+                {"field": "city", "operator": "equals", "value": "La Paz"}
+            ],
+            "fields": ["first_name", "last_name", "email", "birth_date"],
+            "order_by": "-created_at",
+            "limit": 100,
+            "export_format": "json"  // "json", "pdf", "excel", "csv"
+        }
+        """
+        from .dynamic_reports_service import DynamicReportBuilder
+
+        try:
+            tenant = get_current_tenant()
+            if not tenant:
+                return Response(
+                    {'error': 'Tenant no encontrado'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Obtener parámetros
+            model_name = request.data.get('model')
+            filters = request.data.get('filters', [])
+            fields = request.data.get('fields')
+            order_by = request.data.get('order_by')
+            limit = request.data.get('limit', 1000)
+            export_format = request.data.get('export_format', 'json')
+
+            # Validar parámetros requeridos
+            if not model_name:
+                return Response(
+                    {'error': 'El campo "model" es requerido'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Crear builder
+            builder = DynamicReportBuilder(tenant)
+
+            # Generar reporte
+            report_data = builder.build_query(
+                model_name=model_name,
+                filters=filters,
+                fields=fields,
+                order_by=order_by,
+                limit=limit
+            )
+
+            # Exportar según formato
+            if export_format == 'json':
+                return Response(report_data)
+
+            elif export_format in ['pdf', 'excel', 'csv']:
+                # Metadatos
+                metadata = {
+                    'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                    'user_name': request.user.get_full_name(),
+                    'tenant_name': tenant.name if tenant else 'Sistema de Historias Clínicas',
+                    'filters_applied': len(filters),
+                }
+
+                # Título
+                title = f"Reporte de {model_name.replace('_', ' ').title()}"
+
+                # Exportar
+                file_content = builder.export_report(
+                    report_data=report_data,
+                    format_type=export_format,
+                    title=title,
+                    metadata=metadata
+                )
+
+                # Respuesta
+                content_types = {
+                    'pdf': 'application/pdf',
+                    'excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'csv': 'text/csv'
+                }
+
+                filenames = {
+                    'pdf': f'reporte_{model_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf',
+                    'excel': f'reporte_{model_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
+                    'csv': f'reporte_{model_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+                }
+
+                response = HttpResponse(file_content, content_type=content_types[export_format])
+                response['Content-Disposition'] = f'attachment; filename="{filenames[export_format]}"'
+                return response
+
+            else:
+                return Response(
+                    {'error': f'Formato no soportado: {export_format}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.exception("Error generating dynamic report")
+            return Response(
+                {'error': f'Error al generar reporte: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'], url_path='aggregate')
+    def generate_aggregation_report(self, request):
+        """
+        Generar reporte con agregaciones (COUNT, SUM, AVG, etc.)
+
+        POST /api/reports/dynamic/aggregate/
+
+        Body:
+        {
+            "model": "patient",
+            "group_by": "gender",
+            "aggregations": [
+                {"field": "id", "function": "count"}
+            ],
+            "filters": []
+        }
+        """
+        from .dynamic_reports_service import DynamicReportBuilder
+
+        try:
+            tenant = get_current_tenant()
+            if not tenant:
+                return Response(
+                    {'error': 'Tenant no encontrado'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            model_name = request.data.get('model')
+            group_by = request.data.get('group_by')
+            aggregations = request.data.get('aggregations', [])
+            filters = request.data.get('filters', [])
+
+            if not model_name or not group_by:
+                return Response(
+                    {'error': 'Los campos "model" y "group_by" son requeridos'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            builder = DynamicReportBuilder(tenant)
+
+            report_data = builder.generate_aggregation_report(
+                model_name=model_name,
+                group_by=group_by,
+                aggregations=aggregations,
+                filters=filters
+            )
+
+            return Response(report_data)
+
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.exception("Error generating aggregation report")
+            return Response(
+                {'error': f'Error al generar reporte: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'], url_path='predefined')
+    def get_predefined_reports(self, request):
+        """
+        Obtener lista de reportes predefinidos
+
+        GET /api/reports/dynamic/predefined/
+        """
+        from .dynamic_reports_service import DynamicReportBuilder
+
+        try:
+            tenant = get_current_tenant()
+            builder = DynamicReportBuilder(tenant)
+            reports = builder.get_predefined_reports()
+
+            return Response({
+                'total': len(reports),
+                'reports': reports
+            })
+
+        except Exception as e:
+            logger.exception("Error getting predefined reports")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
