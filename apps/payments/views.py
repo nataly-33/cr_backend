@@ -146,14 +146,20 @@ class StripeWebhookViewSet(views.APIView):
             # Manejar evento
             event_type = event['type']
             event_data = event['data']['object']
+            event_id = event['id']
             
-            logger.info(f'Webhook recibido: {event_type}')
+            logger.info(f'Webhook recibido: {event_type} (event_id: {event_id})')
+            
+            # Verificar si ya procesamos este evento (deduplicación)
+            if PaymentAudit.objects.filter(webhook_event_id=event_id).exists():
+                logger.warning(f'Evento duplicado, ignorando: {event_id}')
+                return Response({'status': 'duplicate'}, status=status.HTTP_200_OK)
             
             if event_type == 'checkout.session.completed':
-                return self._handle_checkout_completed(event_data, event['id'])
+                return self._handle_checkout_completed(event_data, event_id)
             
             elif event_type == 'charge.refunded':
-                return self._handle_charge_refunded(event_data, event['id'])
+                return self._handle_charge_refunded(event_data, event_id)
             
             else:
                 logger.warning(f'Evento no manejado: {event_type}')
@@ -194,8 +200,15 @@ class StripeWebhookViewSet(views.APIView):
                 try:
                     registration = TenantRegistration.objects.get(id=registration_id)
                 except TenantRegistration.DoesNotExist:
-                    logger.error(f"Registro no encontrado: {registration_id}")
-                    return Response({'error': 'Registro no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
+                    # Registro no encontrado - probablemente evento antiguo de pruebas
+                    # Retornamos 200 OK para que Stripe NO reintente el evento
+                    logger.warning(f"[WEBHOOK] ⚠️ Registro no encontrado (evento antiguo ignorado): registration_id={registration_id}, event_id={event_id}")
+                    # Marcar como procesado para deduplicación
+                    PaymentAudit.objects.get_or_create(
+                        webhook_event_id=event_id,
+                        defaults={'status': 'ignored_missing_registration'}
+                    )
+                    return Response({'status': 'ignored_old_event'}, status=status.HTTP_200_OK)
                 
                 # Para el flujo de registro público NO creamos objetos Tenant-aware (Payment/Invoice)
                 # antes de que exista el tenant. Eso generaba errores porque los modelos
