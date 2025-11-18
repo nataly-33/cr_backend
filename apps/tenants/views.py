@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from django.db.models import Count, Sum
+from django.utils import timezone
 
 from apps.core.models import Tenant
 from apps.core.permissions import IsSuperAdmin
@@ -224,6 +225,29 @@ def public_simulate_payment(request, registration_id):
             {'error': 'Error al procesar el pago', 'detail': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@extend_schema(
+    request=TenantActivationSerializer,
+    responses={
+        200: OpenApiResponse(
+            description="Tenant activado exitosamente",
+            response={
+                'type': 'object',
+                'properties': {
+                    'status': {'type': 'string'},
+                    'tenant_name': {'type': 'string'},
+                    'login_url': {'type': 'string'},
+                    'message': {'type': 'string'},
+                }
+            }
+        ),
+        400: OpenApiResponse(description="Token inválido o datos incorrectos"),
+    },
+    summary="Activar tenant con nueva contraseña",
+    description="Activa el tenant y crea toda la estructura (roles, admin user, etc.)",
+    tags=['Public - Registro']
+)
 
 
 @extend_schema(
