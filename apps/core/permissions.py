@@ -311,9 +311,9 @@ class CanManageDocuments(BasePermission):
         
         action = getattr(view, 'action', None)
         
-        if action in ['list', 'retrieve']:
+        if action in ['list', 'retrieve', 'download', 'view']:
             return request.user.has_permission(PermissionCodes.DOCUMENT_READ)
-        elif action == 'create' or action == 'upload':
+        elif action in ['create', 'upload']:
             return request.user.has_permission(PermissionCodes.DOCUMENT_CREATE)
         elif action in ['update', 'partial_update']:
             return request.user.has_permission(PermissionCodes.DOCUMENT_UPDATE)
@@ -321,6 +321,9 @@ class CanManageDocuments(BasePermission):
             return request.user.has_permission(PermissionCodes.DOCUMENT_DELETE)
         elif action == 'sign':
             return request.user.has_permission(PermissionCodes.DOCUMENT_SIGN)
+        elif action in ['process_ocr', 'enhance', 'access_log']:
+            # Acciones especiales - permitir a cualquiera con permiso de lectura
+            return request.user.has_permission(PermissionCodes.DOCUMENT_READ)
         
         return False
 

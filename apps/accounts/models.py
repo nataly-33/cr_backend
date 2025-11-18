@@ -363,6 +363,7 @@ class UserPreferences(models.Model):
         ('blue', 'Azul'),
         ('green', 'Verde'),
         ('purple', 'Púrpura'),
+        ('yellow', 'Amarillo'),
     ]
 
     LANGUAGE_CHOICES = [
