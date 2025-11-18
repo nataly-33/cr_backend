@@ -20,6 +20,7 @@ class ClinicalDocumentSerializer(serializers.ModelSerializer):
         read_only=True
     )
     file_url = serializers.SerializerMethodField()
+    enhanced_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ClinicalDocument
@@ -29,7 +30,8 @@ class ClinicalDocumentSerializer(serializers.ModelSerializer):
             'document_date', 'specialty', 'doctor_name', 'doctor_license',
             'content', 'file_path', 'file_name', 'file_size_bytes',
             'mime_type', 'file_hash', 'file_url',
-            'ocr_text', 'ocr_confidence', 'ocr_processed',
+            'enhanced_image_path', 'enhanced_image_url',
+            'ocr_text', 'ocr_confidence', 'ocr_processed', 'ocr_status',
             'is_signed', 'signed_at', 'signed_by', 'signed_by_name',
             'digital_signature', 'is_locked', 'tags',
             'created_by', 'created_by_name',
@@ -59,6 +61,16 @@ class ClinicalDocumentSerializer(serializers.ModelSerializer):
         from .storage import S3Storage
         storage = S3Storage()
         return storage.get_presigned_url(obj.file_path, expiration=3600)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_enhanced_image_url(self, obj) -> Optional[str]:
+        """Genera URL firmada para imagen mejorada"""
+        if not obj.enhanced_image_path:
+            return None
+
+        from .storage import S3Storage
+        storage = S3Storage()
+        return storage.get_presigned_url(obj.enhanced_image_path, expiration=3600)
 
 
 class ClinicalDocumentListSerializer(serializers.ModelSerializer):

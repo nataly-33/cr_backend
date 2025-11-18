@@ -202,9 +202,12 @@ class DocumentService:
             # Volver al inicio del archivo para subirlo
             file_obj.seek(0)
             
-            # Generar path único en S3
+            # Generar path único en S3 usando el SLUG del tenant (más legible que UUID)
+            from apps.core.models import Tenant
+            tenant = Tenant.objects.get(id=document_instance.tenant_id)
+            
             file_extension = file_obj.name.split('.')[-1]
-            file_path = f"documents/{document_instance.tenant_id}/{document_instance.id}.{file_extension}"
+            file_path = f"documents/{tenant.slug}/{document_instance.id}.{file_extension}"
 
             # Subir a S3
             url = self.storage.upload_file(file_obj, file_path)

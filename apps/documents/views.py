@@ -6,8 +6,12 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.http import HttpResponse
 from django.db import models
+from django.conf import settings
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .models import ClinicalDocument, MedicalImage, DocumentAccessLog
 from .serializers import (
@@ -80,7 +84,7 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     - download: document.read
     """
     queryset = ClinicalDocument.objects.all()
-    permission_classes = [IsTenantMember, CanManageDocuments]
+    permission_classes = [IsTenantMember]  # Solo requiere ser miembro del tenant por defecto
     resource_name = 'document'
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'description', 'doctor_name', 'ocr_text']
@@ -101,6 +105,8 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         'view': [IsTenantMember],  # Visualización de documentos
         'sign': [IsTenantMember, CanManageDocuments],
         'access_log': [IsTenantMember],
+        'process_ocr': [IsTenantMember],  # Procesamiento OCR manual
+        'enhance': [IsTenantMember],  # Mejora de imagen con CLAHE - solo miembro del tenant
     }
 
     def get_parser_classes(self):
@@ -129,9 +135,10 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
             created_by=self.request.user
         )
 
-        # Si tiene archivo y es PDF o imagen, lanzar OCR
-        if document.mime_type in ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']:
-            process_document_ocr.delay(str(document.id))
+        # OCR Manual: El usuario debe ejecutarlo manualmente desde la interfaz
+        # Comentado para evitar consumo automático de créditos de AWS
+        # if document.mime_type in ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']:
+        #     process_document_ocr.delay(str(document.id))
 
     def update(self, request, *args, **kwargs):
         """
@@ -169,17 +176,16 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
-            # Lanzar OCR para el nuevo archivo
-            if instance.mime_type in ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']:
-                # Resetear estado OCR
-                instance.ocr_processed = False
-                instance.ocr_text = ''
-                instance.ocr_confidence = None
-                instance.ocr_status = 'pending'
-                instance.save()
-
-                # Lanzar nueva tarea OCR
-                process_document_ocr.delay(str(instance.id))
+            # OCR desactivado por defecto - se activa manualmente desde el frontend
+            # if instance.mime_type in ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']:
+            #     # Resetear estado OCR
+            #     instance.ocr_processed = False
+            #     instance.ocr_text = ''
+            #     instance.ocr_confidence = None
+            #     instance.ocr_status = 'pending'
+            #     instance.save()
+            #     # Lanzar nueva tarea OCR
+            #     process_document_ocr.delay(str(instance.id))
 
         # Actualizar otros campos
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
@@ -219,10 +225,10 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # 🎯 NUEVO: Lanzar tarea OCR automática para PDFs e imágenes
-        if document.mime_type in ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']:
-            # Lanzar tarea Celery asíncrona
-            process_document_ocr.delay(str(document.id))
+        # OCR desactivado por defecto - se activa manualmente desde el frontend con el botón
+        # if document.mime_type in ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']:
+        #     # Lanzar tarea Celery asíncrona
+        #     process_document_ocr.delay(str(document.id))
 
         # Retornar documento creado
         response_serializer = ClinicalDocumentSerializer(document)
@@ -335,6 +341,249 @@ class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
         serializer = DocumentAccessLogSerializer(logs, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['post'], url_path='process-ocr')
+    def process_ocr(self, request, pk=None):
+        """
+        Procesar OCR manualmente para un documento
+        POST /api/documents/{id}/process-ocr/
+        """
+        document = self.get_object()
+
+        # Verificar que el documento tiene archivo
+        if not document.file_path:
+            return Response(
+                {'error': 'El documento no tiene archivo asociado'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verificar que sea PDF o imagen
+        valid_types = ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff']
+        if document.mime_type not in valid_types:
+            return Response(
+                {'error': 'El OCR solo está disponible para PDF e imágenes'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verificar si ya fue procesado
+        if document.ocr_processed and document.ocr_status == 'completed':
+            return Response(
+                {'message': 'Este documento ya fue procesado con OCR'},
+                status=status.HTTP_200_OK
+            )
+
+        try:
+            # Lanzar tarea de Celery
+            process_document_ocr.delay(str(document.id))
+
+            # Actualizar estado
+            document.ocr_status = 'processing'
+            document.save()
+
+            return Response({
+                'message': 'Procesamiento OCR iniciado',
+                'ocr_status': 'processing',
+                'document_id': str(document.id)
+            })
+
+        except Exception as e:
+            logger.exception("Error al iniciar procesamiento OCR")
+            return Response(
+                {'error': f'Error al iniciar OCR: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'], url_path='enhance')
+    def enhance_image(self, request, pk=None):
+        """
+        Mejorar calidad de imagen con CLAHE
+        POST /api/documents/{id}/enhance/
+
+        Body (opcional):
+        {
+            "modality": "xray",  // xray, ct_scan, mri, ultrasound, mammography, pet_scan
+            "clip_limit": 2.0,
+            "tile_grid_size": [8, 8]
+        }
+        """
+        from .image_enhancement_service import ImageEnhancementService
+        from .storage import S3Storage
+        import os
+        import tempfile
+        from django.core.files.base import ContentFile
+
+        try:
+            document = self.get_object()
+
+            # Verificar que el documento tiene archivo
+            if not document.file_path:
+                return Response(
+                    {'error': 'El documento no tiene archivo asociado'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Verificar que es una imagen
+            file_name = document.file_name or ''
+            mime_type = getattr(document, 'mime_type', getattr(document, 'file_type', ''))
+            is_image = (
+                mime_type and mime_type.startswith('image/') or
+                file_name.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.dcm', '.dicom'))
+            )
+
+            if not is_image:
+                return Response(
+                    {'error': 'El documento no es una imagen'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Verificar si ya está mejorada
+            if document.enhanced_image_path:
+                storage = S3Storage()
+                enhanced_url = storage.get_presigned_url(document.enhanced_image_path)
+                original_url = storage.get_presigned_url(document.file_path) if document.file_path else document.file_url
+
+                return Response({
+                    'message': 'La imagen ya está mejorada',
+                    'original_url': original_url,
+                    'enhanced_url': enhanced_url
+                })
+
+            # Obtener parámetros (opcional)
+            modality = request.data.get('modality')  # xray, ct_scan, mri, etc.
+            clip_limit = request.data.get('clip_limit')
+            tile_grid_size = request.data.get('tile_grid_size')
+
+            # Descargar archivo desde S3 a temporal
+            storage = S3Storage()
+            temp_original_path = None
+
+            try:
+                # Crear archivo temporal para la imagen original
+                suffix = os.path.splitext(file_name)[1] or '.jpg'
+                
+                if storage.use_s3:
+                    # Usar un método más seguro en Windows - dejar que boto3 maneje el archivo
+                    import tempfile
+                    temp_dir = tempfile.gettempdir()
+                    import uuid
+                    temp_filename = f"enhance_{uuid.uuid4().hex}{suffix}"
+                    temp_original_path = os.path.join(temp_dir, temp_filename)
+                    
+                    # Descargar directamente a la ruta
+                    storage.s3_client.download_file(
+                        storage.bucket_name,
+                        document.file_path,
+                        temp_original_path
+                    )
+                else:
+                    # Local storage
+                    local_path = os.path.join(settings.MEDIA_ROOT, document.file_path)
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+                    temp_original_path = temp_file.name
+                    temp_file.close()
+                    
+                    with open(local_path, 'rb') as src:
+                        with open(temp_original_path, 'wb') as dst:
+                            dst.write(src.read())
+
+            except Exception as e:
+                # Limpiar si falla la descarga
+                if temp_original_path and os.path.exists(temp_original_path):
+                    try:
+                        os.remove(temp_original_path)
+                    except:
+                        pass
+                raise e
+
+            # Crear servicio de mejora
+            enhancement_service = ImageEnhancementService()
+
+            # Mejorar imagen según parámetros
+            if modality:
+                # Usar preset por modalidad
+                enhanced_path = enhancement_service.enhance_with_preset(
+                    temp_original_path,
+                    modality=modality,
+                    preserve_color=True
+                )
+            elif clip_limit or tile_grid_size:
+                # Usar parámetros manuales
+                enhanced_path = enhancement_service.enhance_medical_image(
+                    temp_original_path,
+                    clip_limit=float(clip_limit) if clip_limit else 2.0,
+                    tile_grid_size=tuple(tile_grid_size) if tile_grid_size else (8, 8),
+                    preserve_color=True
+                )
+            else:
+                # Auto-detectar
+                enhanced_path = enhancement_service.auto_enhance(
+                    temp_original_path,
+                    modality=None
+                )
+
+            # Guardar imagen mejorada en S3 en la carpeta images/
+            tenant_slug = request.tenant.slug
+
+            # Original: documents/{tenant_slug}/filename.jpg (ya existe)
+            # Enhanced: images/{tenant_slug}/filename_enhanced.jpg (nuevo)
+            base_name = os.path.splitext(os.path.basename(file_name))[0]
+            enhanced_filename = f"{base_name}_enhanced.jpg"
+            s3_enhanced_path = f"images/{tenant_slug}/{enhanced_filename}"
+
+            # Subir imagen mejorada a S3
+            with open(enhanced_path, 'rb') as enhanced_file:
+                from django.core.files.uploadedfile import InMemoryUploadedFile
+                import io
+
+                file_content = enhanced_file.read()
+                file_obj = ContentFile(file_content)
+                file_obj.content_type = 'image/jpeg'
+
+                enhanced_url = storage.upload_file(file_obj, s3_enhanced_path)
+
+            if not enhanced_url:
+                raise Exception("Error al subir imagen mejorada a S3")
+
+            # Actualizar documento con ruta de imagen mejorada
+            document.enhanced_image_path = s3_enhanced_path
+            document.save()
+
+            # Obtener métricas de comparación
+            metrics = enhancement_service.compare_images(temp_original_path, enhanced_path)
+
+            # Limpiar archivos temporales INMEDIATAMENTE después de usarlos
+            try:
+                if os.path.exists(temp_original_path):
+                    os.remove(temp_original_path)
+            except Exception as cleanup_error:
+                logger.warning(f"No se pudo eliminar archivo temporal original: {cleanup_error}")
+
+            try:
+                if os.path.exists(enhanced_path):
+                    os.remove(enhanced_path)
+            except Exception as cleanup_error:
+                logger.warning(f"No se pudo eliminar archivo temporal mejorado: {cleanup_error}")
+
+            # URLs para respuesta
+            original_url = storage.get_presigned_url(document.file_path) if document.file_path else document.file_url
+            enhanced_presigned_url = storage.get_presigned_url(s3_enhanced_path)
+
+            return Response({
+                'message': 'Imagen mejorada exitosamente',
+                'original_url': original_url,
+                'enhanced_url': enhanced_presigned_url,
+                'enhanced_path': s3_enhanced_path,
+                'metrics': metrics,
+                'method': 'CLAHE',
+                'modality': modality if modality else 'auto',
+            })
+
+        except Exception as e:
+            logger.exception("Error enhancing document image")
+            return Response(
+                {'error': f'Error al mejorar imagen: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=False, methods=['get'])
     def search(self, request):
         """
@@ -377,6 +626,68 @@ class MedicalImageViewSet(viewsets.ModelViewSet):
             tenant=self.request.tenant,
             created_by=self.request.user
         )
+
+    @action(detail=True, methods=['post'], url_path='enhance')
+    def enhance_image(self, request, pk=None):
+        """
+        Mejorar calidad de imagen con CLAHE
+        POST /api/medical-images/{id}/enhance/
+        """
+        from .image_enhancement_service import ImageEnhancementService
+
+        try:
+            medical_image = self.get_object()
+
+            # Verificar que la imagen existe
+            if not medical_image.image_file:
+                return Response(
+                    {'error': 'La imagen no tiene archivo asociado'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Verificar que no esté ya mejorada
+            if medical_image.enhanced_file:
+                return Response({
+                    'message': 'La imagen ya está mejorada',
+                    'enhanced_url': medical_image.enhanced_file.url if hasattr(medical_image.enhanced_file, 'url') else str(medical_image.enhanced_file)
+                })
+
+            # Crear servicio
+            enhancement_service = ImageEnhancementService()
+
+            # Mejorar imagen
+            original_path = medical_image.image_file.path
+            enhanced_path = enhancement_service.auto_enhance(original_path)
+
+            # Guardar ruta mejorada
+            medical_image.enhanced_file = enhanced_path
+            medical_image.enhancement_applied = True
+            medical_image.enhancement_method = 'clahe'
+            medical_image.enhancement_params = {
+                'clip_limit': 2.0,
+                'tile_grid_size': (8, 8),
+                'denoise': True,
+                'sharpen': True
+            }
+            medical_image.save()
+
+            # Obtener métricas
+            metrics = enhancement_service.compare_images(original_path, enhanced_path)
+
+            return Response({
+                'message': 'Imagen mejorada exitosamente',
+                'original_url': medical_image.image_file.url if hasattr(medical_image.image_file, 'url') else str(medical_image.image_file),
+                'enhanced_url': medical_image.enhanced_file if isinstance(medical_image.enhanced_file, str) else medical_image.enhanced_file.url,
+                'metrics': metrics,
+                'method': 'CLAHE',
+            })
+
+        except Exception as e:
+            logger.exception("Error enhancing image")
+            return Response(
+                {'error': f'Error al mejorar imagen: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class DocumentAccessLogViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet para consultar logs de acceso (solo lectura)"""
