@@ -264,6 +264,19 @@ LOGGING = {
 }
 
 # ============================================================================
+# AWS CLOUDWATCH - Audit Logs Monitoring
+# ============================================================================
+USE_CLOUDWATCH = config('USE_CLOUDWATCH', default=False, cast=bool)
+AWS_CLOUDWATCH_LOG_GROUP = config('AWS_CLOUDWATCH_LOG_GROUP', default='/clinidocs-audit')
+AWS_REGION = config('AWS_REGION', default='us-east-1')
+
+# ============================================================================
+# BACKUP SETTINGS - S3 Backups
+# ============================================================================
+# Si necesitas cambiar esto, edita apps/backup/services.py
+ENABLE_AUTO_BACKUP = config('ENABLE_AUTO_BACKUP', default=True, cast=bool)
+
+# ============================================================================
 # REST FRAMEWORK - Rate Limiting para producción
 # ============================================================================
 REST_FRAMEWORK = {
