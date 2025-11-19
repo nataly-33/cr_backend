@@ -14,11 +14,10 @@ from apps.core.permissions import (
     PermissionByActionMixin,
     PermissionCodes
 )
-from apps.audit.mixins import AuditMixin
 
 
 @extend_schema(tags=['Patients'])
-class PatientViewSet(AuditMixin, PermissionByActionMixin, viewsets.ModelViewSet):
+class PatientViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión de pacientes.
     

@@ -29,7 +29,6 @@ from apps.core.permissions import (
     PermissionByActionMixin,
     PermissionCodes
 )
-from apps.audit.mixins import AuditMixin
 
 @extend_schema_view(
     list=extend_schema(
@@ -72,7 +71,7 @@ from apps.audit.mixins import AuditMixin
         tags=['documents'],
     ),
 )
-class ClinicalDocumentViewSet(AuditMixin, PermissionByActionMixin, viewsets.ModelViewSet):
+class ClinicalDocumentViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión de documentos clínicos.
 
