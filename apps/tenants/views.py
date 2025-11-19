@@ -21,10 +21,11 @@ from .serializers import (
     TenantStatsSerializer,
 )
 from .services import TenantRegistrationService
+from apps.audit.mixins import AuditMixin
 
 
 @extend_schema(tags=['Tenants'])
-class TenantViewSet(viewsets.ReadOnlyModelViewSet):
+class TenantViewSet(AuditMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet para gestión de tenants (solo lectura, solo admin)
     """
