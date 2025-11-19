@@ -7,8 +7,14 @@ import os
 import sys
 import django
 
-# Configurar Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.development')
+# Configurar Django - Usar el settings module del entorno (producción o desarrollo)
+if 'DJANGO_SETTINGS_MODULE' not in os.environ:
+    # Si no está definido, intentar detectar automáticamente
+    if os.getenv('DEBUG', 'False').lower() == 'false':
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.production')
+    else:
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.development')
+
 sys.path.insert(0, os.path.dirname(__file__))
 django.setup()
 

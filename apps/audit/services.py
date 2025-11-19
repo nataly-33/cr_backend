@@ -42,13 +42,35 @@ class AuditLogService:
         if not self.cloudwatch_enabled:
             return
         
+        import logging
+        logger = logging.getLogger(__name__)
+
         try:
-            self.cloudwatch.create_log_stream(
-                logGroupName=self.log_group,
-                logStreamName=self.log_stream
-            )
-        except self.cloudwatch.exceptions.ResourceAlreadyExistsException:
-            pass
+            # Primero intentar crear el log group (por si no existe)
+            try:
+                self.cloudwatch.create_log_group(
+                    logGroupName=self.log_group
+                )
+                logger.info(f"✓ Log group created: {self.log_group}")
+            except self.cloudwatch.exceptions.ResourceAlreadyExistsException:
+                logger.debug(f"Log group already exists: {self.log_group}")
+            except Exception as e:
+                logger.error(f"Error creating log group: {e}")
+            
+            # Luego crear el stream
+            try:
+                self.cloudwatch.create_log_stream(
+                    logGroupName=self.log_group,
+                    logStreamName=self.log_stream
+                )
+                logger.info(f"✓ Log stream created: {self.log_stream}")
+            except self.cloudwatch.exceptions.ResourceAlreadyExistsException:
+                logger.debug(f"Log stream already exists: {self.log_stream}")
+            except Exception as e:
+                logger.error(f"Error creating log stream: {e}")
+                
+        except Exception as e:
+            logger.error(f"Unexpected error in _ensure_log_stream: {type(e).__name__}: {e}", exc_info=True)
 
     def log_action(
         self,
@@ -124,6 +146,9 @@ class AuditLogService:
         if not self.cloudwatch_enabled:
             return
 
+        import logging
+        logger = logging.getLogger(__name__)
+
         try:
             log_data = {
                 'id': str(audit_log.id),
@@ -149,9 +174,10 @@ class AuditLogService:
                     }
                 ]
             )
+            logger.debug(f"✓ Audit log sent to CloudWatch: {audit_log.id}")
         except Exception as e:
             # Log error pero no fallar la acción principal
-            print(f"Error enviando a CloudWatch: {str(e)}")
+            logger.error(f"✗ Error enviando log a CloudWatch: {type(e).__name__}: {str(e)}", exc_info=True)
 
     def verify_log_integrity(self, audit_log_id: uuid.UUID) -> bool:
         """

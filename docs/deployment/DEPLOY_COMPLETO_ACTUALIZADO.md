@@ -761,29 +761,14 @@ VITE_FIREBASE_CONFIG='{"apiKey":"...","projectId":"..."}'
 
 Si quieres servir con build estático en lugar de dev server:
 
-```bash
+````bash
 # Build
 npm run build
 
-# Los archivos estarán en dist/
-```
+ scp -i "D:\1NATALY\SISTEMAS DE INFORMACIÓN II\nuevo GESTION_DOCUMENTAL\smartsales-key.pem" dist ubuntu@52.44.135.19:/home/ubuntu/clinic_records/cr_frontend/```
 
-### 8.3. Ejecutar Frontend en Modo Dev (Temporal)
 
-```bash
-# Instalar pm2 (process manager)
-sudo npm install -g pm2
-
-# Iniciar frontend con pm2
-pm2 start npm --name "frontend" -- run dev -- --host 0.0.0.0 --port 5173
-
-# Guardar configuración de pm2
-pm2 save
-
-# Auto-start en reboot
-pm2 startup
-# Copiar y ejecutar el comando que aparece
-```
+````
 
 ---
 
