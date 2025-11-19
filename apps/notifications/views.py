@@ -38,7 +38,6 @@ from apps.core.permissions import (
     HasPermission,
     PermissionByActionMixin,
 )
-from apps.audit.mixins import AuditMixin
 
 User = get_user_model()
 
@@ -51,7 +50,7 @@ class NotificationPagination(PageNumberPagination):
 
 
 @extend_schema(tags=['Notifications'])
-class NotificationViewSet(AuditMixin, PermissionByActionMixin, viewsets.ReadOnlyModelViewSet):
+class NotificationViewSet(PermissionByActionMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet para notificaciones del usuario logueado.
     

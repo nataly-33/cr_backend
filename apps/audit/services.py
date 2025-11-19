@@ -1,12 +1,15 @@
 """
 Servicios de auditoría - Logs inmutables + CloudWatch
+Enfoque similar a NestJS: Inyección de dependencias + Middleware
 """
 
 import json
 import uuid
 import boto3
+import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
+from functools import lru_cache
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -16,6 +19,7 @@ from apps.core.models import Tenant
 from .models import AuditLog
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class AuditLogService:

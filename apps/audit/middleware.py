@@ -1,54 +1,84 @@
+"""
+Middleware de Auditoría - Captura TODAS las acciones automáticamente
+Similar a NestJS LoggerService - NO DEPENDE DEL VIEWSET
+"""
+
 import json
+import logging
 from django.utils.deprecation import MiddlewareMixin
 from django.utils import timezone
-from .models import AuditLog
+from django.http import HttpRequest, HttpResponse
+
+from .services import AuditLogService
+from apps.core.models import Tenant
+
+logger = logging.getLogger(__name__)
 
 
 class AuditLogMiddleware(MiddlewareMixin):
     """
-    Middleware que captura automáticamente todas las acciones
-    y las registra en el log de auditoría
+    Middleware que captura TODAS las acciones automáticamente
+    - Similar a tu LoggerService de NestJS
+    - Funciona para CUALQUIER ViewSet/endpoint
+    - NO requiere importar nada en el código del view
     """
 
-    # Métodos que se deben auditar
+    # Métodos que auditar (modifican datos)
     AUDITABLE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE']
 
-    # Paths que NO se deben auditar (para evitar ruido)
+    # Rutas que NO auditar (evitar ruido)
     EXCLUDE_PATHS = [
         '/api/schema/',
         '/api/docs/',
-        '/admin/jsi18n/',
+        '/admin/',
         '/static/',
         '/media/',
+        '/health',
+        '/metrics',
+        '/openapi.json',
     ]
 
-    def process_request(self, request):
-        """Captura información del request"""
+    def process_request(self, request: HttpRequest):
+        """Captura información del request ANTES de procesarlo"""
         request._audit_start_time = timezone.now()
-
-    def process_response(self, request, response):
-        """Registra el log de auditoría después de procesar el response"""
         
-        # No auditar si no está autenticado (excepto login/register)
-        if not request.user.is_authenticated and request.path not in ['/api/auth/login/', '/api/auth/register/']:
+        # Guardar body para acceso posterior
+        try:
+            if request.method in self.AUDITABLE_METHODS:
+                request._audit_body = request.body.decode('utf-8') if request.body else '{}'
+                try:
+                    request._audit_body_json = json.loads(request._audit_body)
+                except:
+                    request._audit_body_json = {}
+        except Exception as e:
+            logger.debug(f"Could not capture request body: {e}")
+
+    def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
+        """Registra auditoría DESPUÉS de procesar el response"""
+        
+        # Solo si es petición auditada
+        if not hasattr(request, '_audit_start_time'):
+            return response
+        
+        # Solo auditar métodos modificadores en API
+        if request.method not in self.AUDITABLE_METHODS:
+            return response
+        
+        # No auditar si no es API
+        if not request.path.startswith('/api/'):
             return response
 
         # No auditar paths excluidos
         if any(request.path.startswith(path) for path in self.EXCLUDE_PATHS):
             return response
 
-        # Solo auditar ciertos métodos
-        if request.method not in self.AUDITABLE_METHODS and request.method != 'GET':
+        # Solo si está autenticado
+        if not request.user or not request.user.is_authenticated:
             return response
 
-        # Si es GET, solo auditar endpoints específicos (para no saturar)
-        if request.method == 'GET':
-            if not any(keyword in request.path for keyword in ['/download/', '/export/', '/api/patients/', '/api/documents/']):
-                return response
-
         try:
-            # Extraer información del request
-            tenant = getattr(request, 'tenant', None)
+            # Obtener tenant
+            tenant = self._get_tenant(request)
             user = request.user if request.user.is_authenticated else None
 
             # Obtener IP
@@ -77,30 +107,95 @@ class AuditLogMiddleware(MiddlewareMixin):
                     pass
 
             # Crear log de auditoría
-            AuditLog.objects.create(
-                tenant=tenant,
-                user=user,
-                user_email=user.email if user else 'anonymous',
-                user_name=user.get_full_name() if user else 'Anonymous',
-                action_type=action_type,
-                resource_type=resource_type,
-                resource_id=resource_id,
-                ip_address=ip_address,
-                user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            audit_service = AuditLogService(tenant=tenant)
+            
+            audit_service.log_action(
+                user=request.user,
+                action_type=self._determine_action(request),
+                resource_type=self._get_resource_type(request.path),
+                ip_address=self._get_client_ip(request),
+                user_agent=request.META.get('HTTP_USER_AGENT', 'Unknown'),
                 request_method=request.method,
                 request_path=request.path,
-                request_body=request_body,
+                request_body=getattr(request, '_audit_body_json', {}),
                 response_status=response.status_code,
-                session_id=request.session.session_key if hasattr(request, 'session') else None,
+                error_message='' if response.status_code < 400 else self._extract_error(response),
             )
+            
+            logger.debug(f"✓ Audit: {request.user.email} {request.method} {request.path} → {response.status_code}")
 
         except Exception as e:
-            # No fallar el request si hay error en auditoría
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error creating audit log: {str(e)}")
+            logger.error(f"Error in AuditMiddleware: {type(e).__name__}: {e}", exc_info=True)
 
         return response
+
+    @staticmethod
+    def _get_tenant(request: HttpRequest):
+        """Obtener tenant del request"""
+        try:
+            if hasattr(request.user, 'tenant') and request.user.tenant:
+                return request.user.tenant
+            return None
+        except:
+            return None
+
+    @staticmethod
+    def _get_client_ip(request: HttpRequest) -> str:
+        """Extraer IP del cliente"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip or '127.0.0.1'
+
+    @staticmethod
+    def _determine_action(request: HttpRequest) -> str:
+        """Determina el tipo de acción basado en el método HTTP"""
+        method = request.method
+        path = request.path.lower()
+
+        if 'login' in path:
+            return 'LOGIN'
+        elif 'logout' in path:
+            return 'LOGOUT'
+        elif 'password' in path:
+            return 'PASSWORD_CHANGE'
+        elif method == 'POST':
+            return 'CREATE'
+        elif method in ['PUT', 'PATCH']:
+            return 'UPDATE'
+        elif method == 'DELETE':
+            return 'DELETE'
+        
+        return 'CREATE' if method == 'POST' else 'OTHER'
+
+    @staticmethod
+    def _get_resource_type(path: str) -> str:
+        """Extraer tipo de recurso de la ruta"""
+        # /api/patients/ → patient
+        # /api/documents/ → document
+        
+        parts = path.strip('/').split('/')
+        if len(parts) >= 2:
+            resource = parts[1]
+            if resource.endswith('s'):
+                resource = resource[:-1]
+            return resource.replace('-', '_')
+        
+        return 'unknown'
+
+    @staticmethod
+    def _extract_error(response: HttpResponse) -> str:
+        """Extraer mensaje de error de la respuesta"""
+        try:
+            if response.get('content-type', '').startswith('application/json'):
+                data = json.loads(response.content)
+                if isinstance(data, dict):
+                    return str(data.get('detail', data.get('error', '')))
+        except:
+            pass
+        return ''
 
     def _determine_action(self, request):
         """Determina el tipo de acción basado en el método HTTP y path"""

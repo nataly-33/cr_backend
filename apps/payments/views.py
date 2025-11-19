@@ -28,13 +28,12 @@ from .stripe_config import (
     verify_webhook_signature,
     handle_checkout_session_completed,
 )
-from apps.audit.mixins import AuditMixin
 
 logger = logging.getLogger(__name__)
 
 
 @extend_schema(tags=['Payments'])
-class PaymentViewSet(AuditMixin, PermissionByActionMixin, viewsets.ReadOnlyModelViewSet):
+class PaymentViewSet(PermissionByActionMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet para pagos.
     
