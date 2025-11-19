@@ -12,6 +12,12 @@ AUTH_PASSWORD_VALIDATORS = []
 CELERY_TASK_ALWAYS_EAGER = config('CELERY_TASK_ALWAYS_EAGER', default=False, cast=bool)
 CELERY_TASK_EAGER_PROPAGATES = True
 
+# Celery Broker y Backend para desarrollo (sin Redis)
+# Usa kombu en memoria en lugar de Redis
+CELERY_BROKER_URL = 'memory://'
+CELERY_RESULT_BACKEND = 'cache+memory://'
+CELERY_CACHE_BACKEND = 'locmem://'
+
 # Logging
 LOGGING = {
     'version': 1,
