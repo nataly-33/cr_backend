@@ -145,26 +145,59 @@ class DiabetesDataExtractor:
         Returns:
             Dict con glucose, insulin
         """
-        lab_form = ClinicalForm.objects.filter(
+        # Obtener todas las órdenes de laboratorio del paciente
+        lab_forms = ClinicalForm.objects.filter(
             clinical_record__patient=patient,
             form_type='lab_order'
-        ).order_by('-form_date').first()
+        ).order_by('-form_date')
 
-        if not lab_form or not lab_form.form_data:
+        if not lab_forms.exists():
             return None
 
-        data = lab_form.form_data
         result = {}
 
-        # Extraer glucosa
-        glucose = data.get('glucose') or data.get('glucose_fasting')
-        if glucose:
-            result['glucose'] = float(glucose)
+        # Buscar glucosa e insulina en las diferentes órdenes
+        for lab_form in lab_forms:
+            if not lab_form.form_data:
+                continue
 
-        # Extraer insulina
-        insulin = data.get('insulin')
-        if insulin:
-            result['insulin'] = float(insulin)
+            data = lab_form.form_data
+            test_name = data.get('test_name', '').lower()
+
+            # Extraer glucosa
+            if 'glucosa' in test_name or 'glucose' in test_name:
+                # Intentar diferentes formatos
+                glucose = data.get('glucose') or data.get('glucose_fasting')
+
+                # Si no está directamente, intentar extraer del resultado
+                if not glucose and 'result' in data:
+                    result_str = str(data['result'])
+                    # Extraer número del string (ej: "95.6 mg/dL" -> 95.6)
+                    match = re.search(r'(\d+\.?\d*)', result_str)
+                    if match:
+                        glucose = float(match.group(1))
+
+                if glucose:
+                    result['glucose'] = float(glucose)
+
+            # Extraer insulina
+            if 'insulina' in test_name or 'insulin' in test_name:
+                insulin = data.get('insulin')
+
+                # Si no está directamente, intentar extraer del resultado
+                if not insulin and 'result' in data:
+                    result_str = str(data['result'])
+                    # Extraer número del string (ej: "150.5 µU/mL" -> 150.5)
+                    match = re.search(r'(\d+\.?\d*)', result_str)
+                    if match:
+                        insulin = float(match.group(1))
+
+                if insulin:
+                    result['insulin'] = float(insulin)
+
+            # Si ya tenemos ambos valores, podemos parar
+            if 'glucose' in result and 'insulin' in result:
+                break
 
         return result if result else None
 

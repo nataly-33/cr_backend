@@ -1,297 +1,176 @@
-"""
-Views/Endpoints para la API de predicción de diabetes
-"""
-import logging
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.shortcuts import get_object_or_404
-from django.db.models import Avg
-from drf_spectacular.utils import extend_schema, OpenApiParameter
-
-from ..models import DiabetesPrediction, DiabetesPredictionModel
-from ..serializers import (
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.http import FileResponse
+from django.conf import settings
+import os
+from apps.ai.models import DiabetesPrediction, DiabetesPredictionModel
+from apps.ai.serializers import (
     DiabetesPredictionSerializer,
     DiabetesPredictionModelSerializer,
-    DiabetesPredictionRequestSerializer,
-    DiabetesPredictionResponseSerializer,
-    BatchPredictionRequestSerializer
+    PredictDiabetesRequestSerializer
 )
-from ..services.diabetes_predictor import (
-    predict_diabetes_risk,
-    get_model_info,
-    predict_batch,
-    train_model
-)
-from .permissions import IsAdminForRetrain
-
-logger = logging.getLogger(__name__)
+from apps.ai.services.diabetes_predictor import DiabetesPredictor
+from apps.ai.services.tree_visualizer import TreeVisualizer
+from apps.core.permissions import IsTenantMember
 
 
-class DiabetesPredictionViewSet(viewsets.ModelViewSet):
+class DiabetesPredictionViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet para gestionar predicciones de diabetes
-    
-    Endpoints:
-    - POST /api/ai/diabetes/predict/ - Hacer predicción
-    - GET /api/ai/diabetes/predictions/{patient_id}/ - Historial de predicciones
-    - GET /api/ai/diabetes/model/info/ - Información del modelo
-    - POST /api/ai/diabetes/predict-batch/ - Predicción por lotes
+    ViewSet para predicciones de diabetes
     """
-    
-    serializer_class = DiabetesPredictionSerializer
-    permission_classes = [IsAuthenticated]
     queryset = DiabetesPrediction.objects.all()
+    serializer_class = DiabetesPredictionSerializer
+    permission_classes = [IsAuthenticated, IsTenantMember]
     
-    @extend_schema(
-        summary="Realizar predicción de diabetes para un paciente",
-        request=DiabetesPredictionRequestSerializer,
-        responses={200: DiabetesPredictionResponseSerializer},
-        tags=["AI - Predicción de Diabetes"]
-    )
-    @action(detail=False, methods=['post'], url_path='predict')
+    def get_queryset(self):
+        # Filtrar por tenant del usuario
+        return DiabetesPrediction.objects.filter(tenant=self.request.tenant)
+    
+    @action(detail=False, methods=['post'])
     def predict(self, request):
         """
-        Realiza predicción de riesgo de diabetes para un paciente específico
-        
-        Parámetros:
-        - patient_id (uuid): ID del paciente
-        
-        Retorna:
-        - success (bool): Si la predicción fue exitosa
-        - has_diabetes_risk (bool): Si hay riesgo de diabetes
-        - probability (float): Probabilidad de diabetes (0-1)
-        - risk_level (str): Nivel de riesgo (Bajo/Medio/Alto)
-        - contributing_factors (list): Factores que contribuyen
-        - recommendations (list): Recomendaciones médicas
+        Endpoint para realizar una predicción de diabetes
+        POST /api/ai/diabetes/predict/
+        Body: {"patient_id": "uuid"}
         """
+        serializer = PredictDiabetesRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        patient_id = serializer.validated_data['patient_id']
+        
         try:
-            serializer = DiabetesPredictionRequestSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            
-            patient_id = serializer.validated_data['patient_id']
-            
             # Realizar predicción
-            result = predict_diabetes_risk(str(patient_id))
+            prediction = DiabetesPredictor.predict(
+                patient_id=str(patient_id),
+                user=request.user,
+                tenant=request.tenant
+            )
             
-            if not result.get('success'):
-                return Response(
-                    result,
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            # Serializar resultado
+            result_serializer = DiabetesPredictionSerializer(prediction)
             
-            return Response(result, status=status.HTTP_200_OK)
+            return Response({
+                'success': True,
+                'message': 'Predicción realizada exitosamente',
+                'data': result_serializer.data
+            }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
-            logger.exception("Error en endpoint de predicción")
-            return Response(
-                {
-                    "success": False,
-                    "error": str(e)
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
     
-    @extend_schema(
-        summary="Obtener historial de predicciones de un paciente",
-        responses=DiabetesPredictionSerializer(many=True),
-        tags=["AI - Predicción de Diabetes"]
-    )
-    @action(detail=False, methods=['get'], url_path='predictions/(?P<patient_id>[^/.]+)')
-    def get_predictions(self, request, patient_id=None):
+    @action(detail=False, methods=['get'], url_path='patient/(?P<patient_id>[^/.]+)')
+    def patient_history(self, request, patient_id=None):
         """
-        Obtiene todas las predicciones previas de un paciente
-        
-        Parámetros:
-        - patient_id: ID del paciente (en URL)
-        
-        Retorna:
-        - Lista de predicciones ordenadas por fecha descendente
+        Obtiene el historial de predicciones de un paciente
+        GET /api/ai/diabetes/patient/{patient_id}/
         """
-        try:
-            predictions = DiabetesPrediction.objects.filter(
-                patient_id=patient_id
-            ).order_by('-created_at')
-            
-            serializer = self.get_serializer(predictions, many=True)
-            return Response(serializer.data)
-            
-        except Exception as e:
-            logger.exception("Error al obtener predicciones")
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        predictions = DiabetesPredictor.get_prediction_history(patient_id)
+        serializer = DiabetesPredictionSerializer(predictions, many=True)
+        
+        return Response({
+            'success': True,
+            'count': len(predictions),
+            'data': serializer.data
+        })
     
-    @extend_schema(
-        summary="Obtener información del modelo actual",
-        responses={
-            200: DiabetesPredictionModelSerializer
-        },
-        tags=["AI - Predicción de Diabetes"]
-    )
     @action(detail=False, methods=['get'], url_path='model/info')
     def model_info(self, request):
         """
-        Obtiene información del modelo de diabetes activo
-        
-        Retorna:
-        - version: Versión del modelo
-        - accuracy: Precisión general
-        - precision: Precisión (TP/(TP+FP))
-        - recall: Sensibilidad (TP/(TP+FN))
-        - f1_score: Score F1
-        - training_samples: Cantidad de muestras de entrenamiento
-        - created_at: Fecha de creación
-        - is_active: Si está activo
-        """
-        info = get_model_info()
-        
-        if 'error' in info:
-            return Response(info, status=status.HTTP_404_NOT_FOUND)
-        
-        return Response(info, status=status.HTTP_200_OK)
-    
-    @extend_schema(
-        summary="Realizar predicción para múltiples pacientes",
-        request=BatchPredictionRequestSerializer,
-        tags=["AI - Predicción de Diabetes"]
-    )
-    @action(detail=False, methods=['post'], url_path='predict-batch')
-    def predict_batch(self, request):
-        """
-        Realiza predicciones para múltiples pacientes
-        
-        Parámetros:
-        - patient_ids (list): Lista de UUIDs de pacientes
-        
-        Retorna:
-        - total: Total de pacientes procesados
-        - successful: Predicciones exitosas
-        - failed: Predicciones fallidas
-        - results: Array de resultados
+        Obtiene información del modelo activo
+        GET /api/ai/diabetes/model/info/
         """
         try:
-            serializer = BatchPredictionRequestSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            
-            patient_ids = serializer.validated_data['patient_ids']
-            
-            # Realizar predicciones
-            results = predict_batch([str(pid) for pid in patient_ids])
-            
-            # Contar exitosas y fallidas
-            successful = sum(1 for r in results if r.get('success', False))
-            failed = len(results) - successful
-            
-            return Response({
-                'total': len(results),
-                'successful': successful,
-                'failed': failed,
-                'results': results
-            }, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            logger.exception("Error en predicción por lotes")
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @extend_schema(
-        summary="Obtener estadísticas de diabetes",
-        tags=["AI - Predicción de Diabetes"]
-    )
-    @action(detail=False, methods=['get'], url_path='statistics')
-    def statistics(self, request):
-        """
-        Obtiene estadísticas sobre predicciones de diabetes
-        
-        Retorna:
-        - total_predictions: Total de predicciones realizadas
-        - high_risk_count: Cantidad de pacientes con alto riesgo
-        - medium_risk_count: Cantidad con riesgo medio
-        - low_risk_count: Cantidad con riesgo bajo
-        - average_probability: Probabilidad promedio
-        """
-        try:
-            predictions = DiabetesPrediction.objects.all()
-            
-            total = predictions.count()
-            if total == 0:
+            model = DiabetesPredictionModel.objects.filter(is_active=True).first()
+            if not model:
                 return Response({
-                    'total_predictions': 0,
-                    'high_risk_count': 0,
-                    'medium_risk_count': 0,
-                    'low_risk_count': 0,
-                    'average_probability': 0.0
-                })
+                    'success': False,
+                    'error': 'No hay modelo activo'
+                }, status=status.HTTP_404_NOT_FOUND)
             
-            high_risk = predictions.filter(risk_level='Alto').count()
-            medium_risk = predictions.filter(risk_level='Medio').count()
-            low_risk = predictions.filter(risk_level='Bajo').count()
-            avg_prob = predictions.aggregate(
-                avg=Avg('probability')
-            )['avg'] or 0.0
-            
+            serializer = DiabetesPredictionModelSerializer(model)
             return Response({
-                'total_predictions': total,
-                'high_risk_count': high_risk,
-                'medium_risk_count': medium_risk,
-                'low_risk_count': low_risk,
-                'average_probability': float(avg_prob)
+                'success': True,
+                'data': serializer.data
             })
-            
         except Exception as e:
-            logger.exception("Error al obtener estadísticas")
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @extend_schema(
-        summary="Re-entrenar modelo de diabetes (Admin only)",
-        tags=["AI - Predicción de Diabetes"]
-    )
-    @action(
-        detail=False, 
-        methods=['post'], 
-        url_path='model/retrain',
-        permission_classes=[IsAdminForRetrain]
-    )
-    def model_retrain(self, request):
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='tree/visualization', permission_classes=[AllowAny])
+    def tree_visualization(self, request):
         """
-        Re-entrena el modelo de diabetes con los datos más recientes
-        
-        Requiere: Permisos de administrador
-        
-        Retorna:
-        - success: Si el re-entrenamiento fue exitoso
-        - accuracy: Precisión del nuevo modelo
-        - precision: Precisión (TP/(TP+FP))
-        - recall: Sensibilidad (TP/(TP+FN))
-        - f1_score: Score F1
-        - training_samples: Cantidad de muestras de entrenamiento
-        - timestamp: Cuándo se realizó el entrenamiento
+        Genera y retorna la imagen del árbol de decisión
+        GET /api/ai/diabetes/tree/visualization/
         """
         try:
-            result = train_model()
-            
-            if not result.get('success'):
-                return Response(
-                    result,
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            return Response(result, status=status.HTTP_200_OK)
-            
+            # Generar visualización
+            image_path = TreeVisualizer.visualize_tree()
+
+            # Verificar que existe
+            if not os.path.exists(image_path):
+                return Response({
+                    'success': False,
+                    'error': 'No se pudo generar la visualización'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # Retornar imagen
+            return FileResponse(open(image_path, 'rb'), content_type='image/png')
+
         except Exception as e:
-            logger.exception("Error en re-entrenamiento del modelo")
-            return Response(
-                {
-                    "success": False,
-                    "error": str(e)
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='tree/rules')
+    def tree_rules(self, request):
+        """
+        Obtiene las reglas del árbol de decisión
+        GET /api/ai/diabetes/tree/rules/
+        """
+        try:
+            rules_data = TreeVisualizer.get_tree_rules()
+
+            return Response({
+                'success': True,
+                'data': rules_data
+            })
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='tree/feature-importance', permission_classes=[AllowAny])
+    def feature_importance(self, request):
+        """
+        Genera y retorna el gráfico de importancia de características
+        GET /api/ai/diabetes/tree/feature-importance/
+        """
+        try:
+            # Generar gráfico
+            image_path = TreeVisualizer.get_feature_importance_chart()
+
+            # Verificar que existe
+            if not os.path.exists(image_path):
+                return Response({
+                    'success': False,
+                    'error': 'No se pudo generar el gráfico'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # Retornar imagen
+            return FileResponse(open(image_path, 'rb'), content_type='image/png')
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

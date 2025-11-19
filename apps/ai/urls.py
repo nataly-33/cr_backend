@@ -1,16 +1,9 @@
-"""
-Configuración de URLs para la API de predicción de diabetes
-"""
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from apps.ai import views
 
-from .views import DiabetesPredictionViewSet
-
-# Router para el ViewSet
 router = DefaultRouter()
-router.register(r'diabetes', DiabetesPredictionViewSet, basename='diabetes-prediction')
-
-app_name = 'ai'
+router.register(r'diabetes', views.DiabetesPredictionViewSet, basename='diabetes-prediction')
 
 urlpatterns = [
     path('', include(router.urls)),
