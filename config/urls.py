@@ -38,6 +38,7 @@ urlpatterns = [
     path('api/seed/', include('apps.seed.urls')),
     path('api/notifications/', include('apps.notifications.urls')),
     path('api/payments/', include('apps.payments.urls')),
+    path('api/ai/', include('apps.ai.urls')),
 
 ]
 

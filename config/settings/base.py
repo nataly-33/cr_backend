@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'apps.seed',
     'apps.notifications',
     'apps.payments',
+    'apps.ai',
 ]
 
 MIDDLEWARE = [
