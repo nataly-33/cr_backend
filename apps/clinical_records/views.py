@@ -19,10 +19,11 @@ from apps.core.permissions import (
     HasPermission,
     PermissionByActionMixin
 )
+from apps.audit.mixins import AuditMixin
 
 
 @extend_schema(tags=['Clinical Records'])
-class ClinicalRecordViewSet(PermissionByActionMixin, viewsets.ModelViewSet):
+class ClinicalRecordViewSet(AuditMixin, PermissionByActionMixin, viewsets.ModelViewSet):
     """
     ViewSet para gestión de historias clínicas.
     

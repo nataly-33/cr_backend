@@ -35,12 +35,13 @@ from apps.clinical_records.models import ClinicalRecord
 from apps.accounts.models import User
 from apps.core.models import get_current_tenant
 from drf_spectacular.utils import extend_schema
+from apps.audit.mixins import AuditMixin
 
 logger = logging.getLogger(__name__)
 
 
 @extend_schema(tags=['Reports'])
-class ReportTemplateViewSet(viewsets.ModelViewSet):
+class ReportTemplateViewSet(AuditMixin, viewsets.ModelViewSet):
     """ViewSet para plantillas de reportes"""
     queryset = ReportTemplate.objects.all()
     serializer_class = ReportTemplateSerializer
