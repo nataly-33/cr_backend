@@ -154,27 +154,70 @@ class AuditLogService:
                 'id': str(audit_log.id),
                 'timestamp': audit_log.timestamp.isoformat(),
                 'user_email': audit_log.user_email,
+                'user_name': audit_log.user_name,
                 'action_type': audit_log.action_type,
                 'resource_type': audit_log.resource_type,
                 'resource_id': str(audit_log.resource_id) if audit_log.resource_id else None,
+                'resource_name': audit_log.resource_name,
                 'ip_address': audit_log.ip_address,
+                'user_agent': audit_log.user_agent,
                 'request_method': audit_log.request_method,
                 'request_path': audit_log.request_path,
                 'response_status': audit_log.response_status,
+                'changes': audit_log.changes,
+                'error_message': audit_log.error_message,
                 'log_hash': audit_log.log_hash,
             }
 
-            self.cloudwatch.put_log_events(
-                logGroupName=self.log_group,
-                logStreamName=self.log_stream,
-                logEvents=[
+            # Intentar obtener el nextSequenceToken del último evento
+            sequence_token = None
+            try:
+                response = self.cloudwatch.describe_log_streams(
+                    logGroupName=self.log_group,
+                    logStreamNamePrefix=self.log_stream,
+                    limit=1
+                )
+                if response['logStreams']:
+                    sequence_token = response['logStreams'][0].get('uploadSequenceToken')
+            except Exception as e:
+                logger.debug(f"Could not get sequence token: {e}")
+            
+            # Preparar parámetros para put_log_events
+            put_params = {
+                'logGroupName': self.log_group,
+                'logStreamName': self.log_stream,
+                'logEvents': [
                     {
                         'timestamp': int(audit_log.timestamp.timestamp() * 1000),
                         'message': json.dumps(log_data, cls=DjangoJSONEncoder),
                     }
                 ]
-            )
-            logger.debug(f"✓ Audit log sent to CloudWatch: {audit_log.id}")
+            }
+            
+            # Agregar sequence token si existe
+            if sequence_token:
+                put_params['sequenceToken'] = sequence_token
+            
+            response = self.cloudwatch.put_log_events(**put_params)
+            logger.info(f"✓ Audit log sent to CloudWatch: {audit_log.id}")
+            
+        except self.cloudwatch.exceptions.InvalidSequenceTokenException as e:
+            # Si el token es inválido, reintentar sin token
+            logger.warning(f"Invalid sequence token, retrying without token: {e}")
+            try:
+                self.cloudwatch.put_log_events(
+                    logGroupName=self.log_group,
+                    logStreamName=self.log_stream,
+                    logEvents=[
+                        {
+                            'timestamp': int(audit_log.timestamp.timestamp() * 1000),
+                            'message': json.dumps(log_data, cls=DjangoJSONEncoder),
+                        }
+                    ]
+                )
+                logger.info(f"✓ Audit log sent to CloudWatch (retry): {audit_log.id}")
+            except Exception as retry_error:
+                logger.error(f"✗ Failed to send log after retry: {type(retry_error).__name__}: {str(retry_error)}", exc_info=True)
         except Exception as e:
             # Log error pero no fallar la acción principal
             logger.error(f"✗ Error enviando log a CloudWatch: {type(e).__name__}: {str(e)}", exc_info=True)
