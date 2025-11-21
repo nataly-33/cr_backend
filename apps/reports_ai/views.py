@@ -263,37 +263,145 @@ class ReportsAIViewSet(viewsets.ViewSet):
     def direct_query(self, request):
         """
         POST /api/reports-ai/direct/
-        
+
         Parsea y ejecuta una consulta en lenguaje natural en un solo paso
         """
         serializer = DirectQueryRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        # Paso 1: Parsear
-        parse_response = self.parse_query(request)
-        
-        if parse_response.status_code != 200:
-            return parse_response
-        
-        parse_data = parse_response.data
-        
-        # Paso 2: Ejecutar
-        execute_request_data = {
-            'query_id': parse_data['query_id'],
-            'output_format': serializer.validated_data['output_format'],
-            'row_limit': serializer.validated_data['row_limit'],
-        }
-        
-        # Modificar request.data temporalmente
-        original_data = request.data
-        request._full_data = execute_request_data
-        
-        execute_response = self.execute_query(request)
-        
-        # Restaurar
-        request._full_data = original_data
-        
-        return execute_response
+
+        query_text = serializer.validated_data['query_text']
+        language = serializer.validated_data.get('language', 'es')
+        input_method = serializer.validated_data.get('input_method', 'text')
+        ai_provider = serializer.validated_data.get('ai_provider', 'local')
+        output_format = serializer.validated_data.get('output_format', 'json')
+        row_limit = serializer.validated_data.get('row_limit', 100)
+
+        # Crear registro de consulta
+        nl_query = NaturalLanguageQuery.objects.create(
+            user=request.user,
+            query_text=query_text,
+            language=language,
+            input_method=input_method,
+            ai_model=ai_provider,
+            status='pending'
+        )
+
+        try:
+            start_time = time.time()
+
+            # Paso 1: Parsear con servicio NLP
+            parser = NLPParserService(ai_provider=ai_provider)
+            result = parser.parse_query(query_text, language)
+
+            processing_time = int((time.time() - start_time) * 1000)
+
+            # Validar SQL generado
+            is_valid, error_msg = parser.validate_sql(result.get('sql', ''))
+
+            if not is_valid:
+                nl_query.status = 'failed'
+                nl_query.error_message = error_msg
+                nl_query.processing_time_ms = processing_time
+                nl_query.save()
+
+                return Response(
+                    {'error': error_msg},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Actualizar registro
+            nl_query.generated_sql = result['sql']
+            nl_query.inferred_params = result.get('params', {})
+            nl_query.confidence_score = result.get('confidence', 0.0)
+            nl_query.status = 'validated'
+            nl_query.processing_time_ms = processing_time
+            nl_query.save()
+
+            # Paso 2: Ejecutar consulta
+            execution = QueryExecution.objects.create(
+                nl_query=nl_query,
+                executed_sql=result['sql'],
+                output_format=output_format,
+                row_limit=row_limit,
+                status='executing',
+                execution_time_ms=0
+            )
+
+            executor = SQLExecutorService()
+            exec_result = executor.execute_query(
+                result['sql'],
+                result.get('params', {}),
+                row_limit
+            )
+
+            # Actualizar ejecución
+            execution.result_count = exec_result['row_count']
+            execution.result_data = {
+                'columns': exec_result['columns'],
+                'data': exec_result['data'][:100]
+            }
+            execution.execution_time_ms = exec_result['execution_time_ms']
+            execution.status = 'completed'
+            execution.save()
+
+            # Si el formato no es JSON, generar archivo
+            download_url = None
+            if output_format != 'json':
+                file_content = executor.export_to_format(exec_result, output_format)
+
+                import os
+                from django.conf import settings
+
+                reports_dir = os.path.join(settings.MEDIA_ROOT, 'reports_ai')
+                os.makedirs(reports_dir, exist_ok=True)
+
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                ext = 'xlsx' if output_format == 'excel' else output_format
+                filename = f'report_{execution.id}_{timestamp}.{ext}'
+                filepath = os.path.join(reports_dir, filename)
+
+                mode = 'wb' if isinstance(file_content, bytes) else 'w'
+                with open(filepath, mode) as f:
+                    f.write(file_content)
+
+                execution.file_path = f'reports_ai/{filename}'
+                execution.file_size_bytes = os.path.getsize(filepath)
+                execution.save()
+
+                download_url = f'/media/reports_ai/{filename}'
+
+            response_data = {
+                'execution_id': execution.id,
+                'query_id': nl_query.id,
+                'status': 'completed',
+                'sql': result['sql'],
+                'confidence': result.get('confidence', 0.0),
+                'result_count': exec_result['row_count'],
+                'execution_time_ms': exec_result['execution_time_ms'],
+                'columns': exec_result['columns'],
+                'data': exec_result['data'],
+                'truncated': exec_result['truncated'],
+                'download_url': download_url,
+            }
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.exception("Error in direct query")
+
+            nl_query.status = 'failed'
+            nl_query.error_message = str(e)
+            nl_query.save()
+
+            if 'execution' in locals():
+                execution.status = 'failed'
+                execution.error_message = str(e)
+                execution.save()
+
+            return Response(
+                {'error': f'Error ejecutando consulta: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @extend_schema(
         responses={200: QueryHistorySerializer(many=True)},

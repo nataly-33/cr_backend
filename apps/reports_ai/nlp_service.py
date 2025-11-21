@@ -49,17 +49,17 @@ class NLPParserService:
         'clinical_form': {
             'model': 'clinical_records.ClinicalForm',
             'fields': [
-                'id', 'form_type', 'form_number', 'form_date',
-                'doctor_name', 'doctor_specialty', 'doctor_license',
+                'id', 'form_type', 'form_date',
+                'doctor_name', 'doctor_specialty',
                 'created_at', 'clinical_record_id', 'filled_by_id'
             ],
             'joins': {
                 'clinical_record': 'clinical_record__',
                 'patient': 'clinical_record__patient__',
             },
-            'searchable': ['form_type', 'form_number', 'doctor_name'],
+            'searchable': ['form_type', 'doctor_name'],
             'aliases': ['formulario', 'formularios', 'form', 'forms',
-                       'triage', 'consulta', 'receta', 'lab_order', 
+                       'triage', 'consulta', 'receta', 'lab_order',
                        'orden de laboratorio', 'orden de imagenología', 'ordenes', 'órdenes',
                        'prescription', 'procedimiento', 'imaging_order']
         },
@@ -126,20 +126,20 @@ class NLPParserService:
     
     def parse_query(self, query_text: str, language: str = 'es') -> Dict:
         """
-        Parsear consulta en lenguaje natural a SQL
-        
+        Parsear consulta en lenguaje natural a SQL (ROBUSTO - Parser Local)
+
         Args:
             query_text: Texto de la consulta
             language: Idioma (es, en)
-        
+
         Returns:
             {
                 'sql': 'SELECT ...',
                 'params': {...},
                 'confidence': 0.95,
-                'table': 'patient',
+                'table_name': 'patient',
                 'explanation': '...',
-                'provider': 'bedrock'
+                'provider': 'local'
             }
         """
         # Validar entrada
@@ -153,7 +153,7 @@ class NLPParserService:
                 'provider': 'error',
                 'error': 'La consulta no puede estar vacía'
             }
-        
+
         max_length = getattr(settings, 'REPORTS_AI_MAX_QUERY_LENGTH', 5000)
         if len(query_text) > max_length:
             return {
@@ -165,21 +165,27 @@ class NLPParserService:
                 'provider': 'error',
                 'error': f'La consulta no puede exceder {max_length} caracteres'
             }
-        
-        # Detectar los 3 reportes críticos predefinidos
-        critical_report = self._detect_critical_report(query_text)
-        if critical_report:
-            return critical_report
-        
-        # Intentar parsing con OpenAI si está disponible
-        if self.ai_provider == 'openai' and self.client:
-            try:
-                return self._parse_with_openai(query_text, language)
-            except Exception as e:
-                logger.warning(f"OpenAI parsing failed: {e}. Falling back to local parser")
-                return self._parse_with_rules(query_text, language)
-        else:
+
+        try:
+            # Detectar los reportes críticos predefinidos (alta confianza)
+            critical_report = self._detect_critical_report(query_text)
+            if critical_report:
+                return critical_report
+
+            # Usar parser local con reglas mejoradas
             return self._parse_with_rules(query_text, language)
+
+        except Exception as e:
+            logger.error(f"Error parsing query: {e}")
+            return {
+                'sql': '',
+                'params': {},
+                'confidence': 0.0,
+                'table_name': None,
+                'explanation': f'Error al procesar consulta: {str(e)}',
+                'provider': 'error',
+                'error': str(e)
+            }
     
     def _detect_critical_report(self, query_text: str) -> Optional[Dict]:
         """
@@ -362,61 +368,83 @@ ORDER BY p.first_name {order_dir}, p.last_name {order_dir}
     
     
     def _build_prompt(self, query_text: str, language: str) -> str:
-        """Construir prompt optimizado para OpenAI"""
-        schema_description = self._get_schema_description()
-        
+        """Construir prompt MEJORADO y optimizado para OpenAI con ejemplos avanzados"""
+        schema_description = self._get_schema_description_detailed()
+        examples = self._get_advanced_examples(language)
+
         # Lenguaje del prompt
         if language == 'es':
             lang_instructions = """
 IDIOMA: Español
 
-INSTRUCCIONES:
-1. Genera una consulta SQL válida y segura (SOLO SELECT, NO DELETE/DROP/UPDATE)
-2. Usa los nombres de tabla y campos EXACTOS del esquema
-3. Aplica filtros apropiados basados en el texto de la consulta
-4. Si el usuario no especifica límite, usa máximo 100 filas
-5. Usa JOINs inteligentemente si se necesitan datos de múltiples tablas
-6. Maneja fechas correctamente (formato YYYY-MM-DD)
-7. Limpia y valida todos los parámetros contra SQL injection
-8. Retorna SOLO JSON válido sin explicación adicional
+INSTRUCCIONES AVANZADAS:
+1. Genera SQL PostgreSQL válido y optimizado (SOLO SELECT, NO DELETE/DROP/UPDATE)
+2. Usa EXACTAMENTE los nombres de tablas y campos del esquema
+3. Aplica MÚLTIPLES filtros combinados con AND/OR cuando sea necesario
+4. Usa JOINs apropiados para relacionar tablas (INNER, LEFT, etc.)
+5. Maneja rangos de fechas con BETWEEN o >= y <
+6. Soporta agregaciones (COUNT, SUM, AVG, MAX, MIN) con GROUP BY
+7. Usa LIKE para búsquedas parciales, = para exactas
+8. Convierte meses a números (enero=1, febrero=2, etc.)
+9. Años sin especificar = año actual (2025)
+10. Usa CAST/EXTRACT para manipulación de fechas
+11. Ordena con ORDER BY (ASC/DESC)
+12. SIEMPRE usa alias de tabla (p, cr, cf, doc, u) para claridad
+13. SIEMPRE incluye campos de join en el SELECT cuando sea relevante
+14. Retorna SOLO JSON válido, sin markdown, sin explicaciones extra
 """
         else:
             lang_instructions = """
 LANGUAGE: English
 
-INSTRUCTIONS:
-1. Generate safe, valid SQL query (SELECT ONLY, NO DELETE/DROP/UPDATE)
+ADVANCED INSTRUCTIONS:
+1. Generate valid, optimized PostgreSQL SQL (SELECT ONLY, NO DELETE/DROP/UPDATE)
 2. Use EXACT table and field names from schema
-3. Apply appropriate filters based on query text
-4. If no limit specified, use maximum 100 rows
-5. Use JOINs intelligently if data from multiple tables needed
-6. Handle dates correctly (format YYYY-MM-DD)
-7. Clean and validate all parameters against SQL injection
-8. Return ONLY valid JSON without additional explanation
+3. Apply MULTIPLE combined filters with AND/OR when needed
+4. Use appropriate JOINs to relate tables (INNER, LEFT, etc.)
+5. Handle date ranges with BETWEEN or >= and <
+6. Support aggregations (COUNT, SUM, AVG, MAX, MIN) with GROUP BY
+7. Use LIKE for partial searches, = for exact matches
+8. Convert month names to numbers (january=1, february=2, etc.)
+9. Years without specification = current year (2025)
+10. Use CAST/EXTRACT for date manipulation
+11. Order with ORDER BY (ASC/DESC)
+12. ALWAYS use table aliases (p, cr, cf, doc, u) for clarity
+13. ALWAYS include join fields in SELECT when relevant
+14. Return ONLY valid JSON, no markdown, no extra explanations
 """
-        
-        prompt = f"""You are an expert SQL generator for healthcare systems. Convert natural language queries to safe, efficient SQL.
 
-DATABASE SCHEMA:
+        prompt = f"""You are an EXPERT SQL generator for medical record systems. Generate PRECISE, COMPLEX queries from natural language.
+
+DATABASE SCHEMA (PostgreSQL):
 {schema_description}
 
-USER QUERY:
+EJEMPLOS DE CONSULTAS COMPLEJAS:
+{examples}
+
+CONSULTA DEL USUARIO:
 "{query_text}"
 
 {lang_instructions}
 
-RESPOND WITH ONLY THIS JSON STRUCTURE:
+RESPONDE CON ESTE JSON (sin ```json ni markdown):
 {{
-    "sql": "SELECT ... FROM ...",
+    "sql": "SELECT campos FROM tabla alias JOIN ... WHERE condiciones ORDER BY ... LIMIT N",
     "params": {{}},
-    "confidence": 0.95,
-    "table_name": "patient",
-    "explanation": "Query explanation in {language}",
+    "confidence": 0.90,
+    "table_name": "tabla_principal",
+    "explanation": "Explicación clara de la consulta en {language}",
     "estimated_rows": 100
 }}
 
-Remember: ONLY SELECT queries. ONLY JSON in response. NO EXPLANATIONS OUTSIDE JSON."""
-        
+CRÍTICO:
+- SQL debe ser EJECUTABLE directamente en PostgreSQL
+- Usa alias SIEMPRE (p, cr, cf, doc, u)
+- Para meses: enero/january=1, diciembre/december=12
+- Para rangos: created_at >= '2025-01-01' AND created_at < '2025-02-01'
+- Para JOINs: SIEMPRE especifica la tabla completa: patient p JOIN clinical_record cr ON p.id = cr.patient_id
+- SOLO JSON en la respuesta, sin texto adicional."""
+
         return prompt
     
     
@@ -428,14 +456,166 @@ Remember: ONLY SELECT queries. ONLY JSON in response. NO EXPLANATIONS OUTSIDE JS
             if len(table_info['fields']) > 8:
                 fields_str += f", ..."
             aliases_str = ', '.join(table_info['aliases'][:3])  # Primeros 3 alias
-            
+
             desc.append(f"TABLE: {table_name}")
             desc.append(f"  Fields: {fields_str}")
             desc.append(f"  Aliases: {aliases_str}")
             if 'joins' in table_info:
                 desc.append(f"  Can JOIN with: {', '.join(table_info['joins'].keys())}")
-            
+
         return '\n'.join(desc)
+
+    def _get_schema_description_detailed(self) -> str:
+        """Obtener descripción DETALLADA del esquema de BD para prompts mejorados"""
+        desc = []
+
+        for table_name, table_info in self.AVAILABLE_TABLES.items():
+            # Nombre de la tabla y modelo Django
+            model_name = table_info['model']
+            db_table = model_name.split('.')[-1].lower()
+
+            # Alias recomendado
+            alias_map = {
+                'patient': 'p',
+                'clinical_record': 'cr',
+                'clinical_form': 'cf',
+                'document': 'doc',
+                'user': 'u'
+            }
+            alias = alias_map.get(table_name, table_name[0])
+
+            desc.append(f"\nTABLA: {db_table} (alias: {alias})")
+            desc.append(f"  Django Model: {model_name}")
+            desc.append(f"  Nombres alternativos: {', '.join(table_info['aliases'][:5])}")
+
+            # Campos completos
+            desc.append(f"  CAMPOS:")
+            for field in table_info['fields']:
+                desc.append(f"    - {field}")
+
+            # Relaciones (JOINs)
+            if 'joins' in table_info:
+                desc.append(f"  RELACIONES:")
+                for join_table, join_field in table_info['joins'].items():
+                    desc.append(f"    - JOIN {join_table}: {join_field}")
+
+            # Campos buscables
+            if 'searchable' in table_info:
+                desc.append(f"  CAMPOS BUSCABLES: {', '.join(table_info['searchable'])}")
+
+        # Agregar relaciones clave
+        desc.append("\n\nRELACIONES IMPORTANTES:")
+        desc.append("  patient.id → clinical_record.patient_id")
+        desc.append("  clinical_record.id → clinical_form.clinical_record_id")
+        desc.append("  clinical_record.id → document.clinical_record_id")
+        desc.append("  user.id → clinical_form.filled_by_id")
+        desc.append("  user.id → document.created_by_id")
+
+        return '\n'.join(desc)
+
+    def _get_advanced_examples(self, language: str) -> str:
+        """Obtener ejemplos avanzados de consultas para el prompt"""
+        if language == 'es':
+            examples = """
+EJEMPLO 1: Filtros múltiples con JOIN
+Query: "Documentos clínicos firmados de cardiología creados en octubre por la Dra. García"
+SQL: SELECT doc.id, doc.title, doc.document_type, doc.is_signed, doc.doctor_name, doc.specialty, p.first_name || ' ' || p.last_name as patient_name
+     FROM document doc
+     JOIN clinical_record cr ON doc.clinical_record_id = cr.id
+     JOIN patient p ON cr.patient_id = p.id
+     WHERE doc.is_signed = true
+       AND doc.specialty LIKE '%Cardiología%'
+       AND doc.doctor_name LIKE '%García%'
+       AND doc.created_at >= '2025-10-01'
+       AND doc.created_at < '2025-11-01'
+     ORDER BY doc.created_at DESC
+     LIMIT 100
+
+EJEMPLO 2: Agregación con GROUP BY
+Query: "Cantidad de formularios por tipo y especialidad del doctor en noviembre"
+SQL: SELECT cf.form_type, cf.doctor_specialty, COUNT(*) as total
+     FROM clinical_form cf
+     WHERE cf.created_at >= '2025-11-01'
+       AND cf.created_at < '2025-12-01'
+     GROUP BY cf.form_type, cf.doctor_specialty
+     ORDER BY total DESC
+     LIMIT 100
+
+EJEMPLO 3: Rango de fechas con múltiples filtros
+Query: "Pacientes mujeres entre 20 y 40 años registrados entre marzo y junio 2025"
+SQL: SELECT p.id, p.first_name, p.last_name, p.date_of_birth, p.gender, p.email
+     FROM patient p
+     WHERE p.gender = 'F'
+       AND p.date_of_birth >= '1985-01-01'
+       AND p.date_of_birth <= '2005-01-01'
+       AND p.created_at >= '2025-03-01'
+       AND p.created_at < '2025-07-01'
+     ORDER BY p.created_at DESC
+     LIMIT 100
+
+EJEMPLO 4: LEFT JOIN con condiciones
+Query: "Pacientes con sus historias clínicas, incluyendo los que no tienen"
+SQL: SELECT p.id, p.first_name, p.last_name, cr.record_number, cr.blood_type, cr.status
+     FROM patient p
+     LEFT JOIN clinical_record cr ON p.id = cr.patient_id
+     ORDER BY p.first_name ASC
+     LIMIT 100
+
+EJEMPLO 5: Subconsulta con EXISTS
+Query: "Pacientes que tienen al menos un documento firmado en octubre"
+SQL: SELECT p.id, p.first_name, p.last_name, p.email
+     FROM patient p
+     WHERE EXISTS (
+       SELECT 1 FROM clinical_record cr
+       JOIN document doc ON cr.id = doc.clinical_record_id
+       WHERE cr.patient_id = p.id
+         AND doc.is_signed = true
+         AND doc.created_at >= '2025-10-01'
+         AND doc.created_at < '2025-11-01'
+     )
+     ORDER BY p.first_name ASC
+     LIMIT 100
+"""
+        else:
+            examples = """
+EXAMPLE 1: Multiple filters with JOIN
+Query: "Signed clinical documents from cardiology created in October by Dr. García"
+SQL: SELECT doc.id, doc.title, doc.document_type, doc.is_signed, doc.doctor_name, doc.specialty, p.first_name || ' ' || p.last_name as patient_name
+     FROM document doc
+     JOIN clinical_record cr ON doc.clinical_record_id = cr.id
+     JOIN patient p ON cr.patient_id = p.id
+     WHERE doc.is_signed = true
+       AND doc.specialty LIKE '%Cardiology%'
+       AND doc.doctor_name LIKE '%García%'
+       AND doc.created_at >= '2025-10-01'
+       AND doc.created_at < '2025-11-01'
+     ORDER BY doc.created_at DESC
+     LIMIT 100
+
+EXAMPLE 2: Aggregation with GROUP BY
+Query: "Count of forms by type and doctor specialty in November"
+SQL: SELECT cf.form_type, cf.doctor_specialty, COUNT(*) as total
+     FROM clinical_form cf
+     WHERE cf.created_at >= '2025-11-01'
+       AND cf.created_at < '2025-12-01'
+     GROUP BY cf.form_type, cf.doctor_specialty
+     ORDER BY total DESC
+     LIMIT 100
+
+EXAMPLE 3: Date range with multiple filters
+Query: "Female patients between 20 and 40 years old registered between March and June 2025"
+SQL: SELECT p.id, p.first_name, p.last_name, p.date_of_birth, p.gender, p.email
+     FROM patient p
+     WHERE p.gender = 'F'
+       AND p.date_of_birth >= '1985-01-01'
+       AND p.date_of_birth <= '2005-01-01'
+       AND p.created_at >= '2025-03-01'
+       AND p.created_at < '2025-07-01'
+     ORDER BY p.created_at DESC
+     LIMIT 100
+"""
+
+        return examples
     
     def _call_openai(self, prompt: str) -> Dict:
         """Llamar a OpenAI GPT con manejo de errores"""
@@ -483,12 +663,18 @@ Remember: ONLY SELECT queries. ONLY JSON in response. NO EXPLANATIONS OUTSIDE JS
     
     def _parse_with_rules(self, query_text: str, language: str) -> Dict:
         """
-        Parsear usando reglas heurísticas (fallback cuando no hay IA)
-        Más robusto y confiable que la versión anterior
+        Parsear usando reglas heurísticas MEJORADAS (fallback cuando no hay IA)
+        Soporta filtros complejos, JOINs, agregaciones
         """
         query_lower = query_text.lower()
-        
-        # 1. Detectar tabla principal
+
+        # 1. Detectar si es una agregación (COUNT, SUM, etc)
+        is_aggregation = any(word in query_lower for word in ['cantidad', 'count', 'suma', 'sum', 'promedio', 'average', 'avg', 'total', 'máximo', 'max', 'mínimo', 'min'])
+
+        if is_aggregation:
+            return self._parse_aggregation_query(query_text, query_lower, language)
+
+        # 2. Detectar tabla principal
         table_name = self._detect_table(query_lower)
         if not table_name:
             return {
@@ -500,50 +686,67 @@ Remember: ONLY SELECT queries. ONLY JSON in response. NO EXPLANATIONS OUTSIDE JS
                 'provider': 'local',
                 'error': 'Tabla no identificada'
             }
-        
+
         table_info = self.AVAILABLE_TABLES[table_name]
-        
-        # 2. Detectar campos a seleccionar
-        fields = self._detect_fields(query_lower, table_info)
-        
-        # 3. Detectar filtros (fechas, valores, etc.)
-        filters, params = self._detect_filters(query_lower, table_info)
-        
-        # 4. Detectar límite
+
+        # 3. Detectar necesidad de JOINs
+        needs_joins, join_tables = self._detect_joins_needed(query_lower, table_name)
+
+        # 4. Detectar campos a seleccionar
+        fields = self._detect_fields_advanced(query_lower, table_info, join_tables)
+
+        # 5. Detectar filtros complejos (fechas, rangos, booleanos, LIKE, etc.)
+        filters, params = self._detect_filters_advanced(query_lower, table_info)
+
+        # 6. Detectar ordenamiento
+        order_by = self._detect_order_by(query_lower)
+
+        # 7. Detectar límite
         limit = self._detect_limit(query_lower)
-        
-        # 5. Construir SQL
-        model_name = table_info['model']
-        app_label, model_class_name = model_name.split('.')
-        table_db_name = self._get_db_table_name(app_label, model_class_name)
-        
-        select_clause = ', '.join(fields) if fields else '*'
-        sql_parts = [f"SELECT {select_clause} FROM {table_db_name}"]
-        
-        if filters:
-            sql_parts.append(f"WHERE {' AND '.join(filters)}")
-        
-        sql_parts.append(f"ORDER BY created_at DESC")
-        sql_parts.append(f"LIMIT {limit}")
-        
-        sql = ' '.join(sql_parts)
-        
+
+        # 8. Construir SQL con JOINs si es necesario
+        sql = self._build_sql_with_joins(
+            table_name=table_name,
+            fields=fields,
+            filters=filters,
+            join_tables=join_tables,
+            order_by=order_by,
+            limit=limit
+        )
+
+        confidence = 0.75 if needs_joins else 0.70
+
         return {
             'sql': sql,
             'params': params,
-            'confidence': 0.6,  # Confianza menor para parser local
+            'confidence': confidence,
             'table_name': table_name,
-            'explanation': f'Consulta a tabla {table_name} con {len(filters)} filtros',
+            'explanation': f'Consulta {"con JOINs " if needs_joins else ""}a tabla {table_name} con {len(filters)} filtros',
             'estimated_rows': limit,
             'provider': 'local'
         }
     
     def _detect_table(self, query_lower: str) -> Optional[str]:
-        """Detectar tabla a partir de alias en el texto"""
-        for table_name, table_info in self.AVAILABLE_TABLES.items():
+        """Detectar tabla a partir de alias en el texto con priorización"""
+        # Prioridad de tablas: más específicas primero
+        priority_tables = ['document', 'clinical_form', 'clinical_record', 'user', 'patient']
+
+        # Buscar con prioridad
+        matches = []
+        for table_name in priority_tables:
+            if table_name not in self.AVAILABLE_TABLES:
+                continue
+            table_info = self.AVAILABLE_TABLES[table_name]
             for alias in table_info['aliases']:
-                if alias.lower() in query_lower:
-                    return table_name
+                # Buscar como palabra completa o con espacios
+                if f' {alias.lower()} ' in f' {query_lower} ' or query_lower.startswith(alias.lower()):
+                    matches.append((table_name, len(alias)))  # Guardar con longitud del alias
+
+        # Si hay matches, retornar el más específico (alias más largo)
+        if matches:
+            matches.sort(key=lambda x: x[1], reverse=True)
+            return matches[0][0]
+
         return None
     
     def _detect_fields(self, query_lower: str, table_info: Dict) -> List[str]:
@@ -771,42 +974,358 @@ Remember: ONLY SELECT queries. ONLY JSON in response. NO EXPLANATIONS OUTSIDE JS
     def validate_sql(self, sql: str) -> Tuple[bool, Optional[str]]:
         """
         Validar que el SQL sea seguro
-        
+
         Returns:
             (is_valid, error_message)
         """
         if not sql:
             return False, "SQL vacío"
-        
+
         sql_upper = sql.upper().strip()
-        
+
         # 1. Solo permitir SELECT
         if not sql_upper.startswith('SELECT'):
             return False, "Solo se permiten consultas SELECT"
-        
+
         # 2. Prohibir operaciones peligrosas (buscar como palabra completa, no en campos como created_at)
         dangerous_keywords = [
             r'\bDROP\b', r'\bDELETE\b', r'\bUPDATE\b', r'\bINSERT\b', r'\bALTER\b',
             r'\bCREATE\s+TABLE\b', r'\bCREATE\s+DATABASE\b', r'\bCREATE\s+INDEX\b',
             r'\bTRUNCATE\b', r'\bEXEC\b', r'\bEXECUTE\b'
         ]
-        
+
         for pattern in dangerous_keywords:
             if re.search(pattern, sql_upper):
                 keyword = pattern.replace(r'\b', '').replace(r'\s+', ' ')
                 return False, f"Operación prohibida: {keyword}"
-        
+
         # Prohibir comentarios SQL que puedan ocultar inyecciones
         if '--' in sql or '/*' in sql:
             return False, "No se permiten comentarios SQL"
-        
+
         # 3. Validar múltiples queries
         if ';' in sql and not sql.rstrip().endswith(';'):
             return False, "No se permiten múltiples consultas"
-        
+
         # 4. Límite de longitud
         max_length = getattr(settings, 'REPORTS_AI_MAX_QUERY_LENGTH', 5000)
         if len(sql) > max_length:
             return False, f"Consulta demasiado larga (máx {max_length} caracteres)"
-        
+
         return True, None
+
+    # ================= MÉTODOS AVANZADOS PARA PARSER LOCAL =================
+
+    def _detect_joins_needed(self, query_lower: str, table_name: str) -> Tuple[bool, List[str]]:
+        """Detectar si se necesitan JOINs y qué tablas"""
+        join_tables = []
+
+        # Si se mencionan múltiples tablas
+        tables_mentioned = []
+        for tname, tinfo in self.AVAILABLE_TABLES.items():
+            for alias in tinfo['aliases']:
+                if alias in query_lower and tname != table_name:
+                    tables_mentioned.append(tname)
+                    break
+
+        # Remover duplicados
+        tables_mentioned = list(set(tables_mentioned))
+
+        # Determinar joins basados en tabla principal
+        if table_name == 'clinical_form' or table_name == 'document':
+            # Siempre joinear con clinical_record y patient para contexto
+            if 'paciente' in query_lower or 'patient' in query_lower:
+                join_tables = ['clinical_record', 'patient']
+        elif table_name == 'clinical_record':
+            # Joinear con patient si se menciona
+            if 'paciente' in query_lower or 'patient' in query_lower:
+                join_tables = ['patient']
+
+        # Agregar tablas mencionadas explícitamente
+        join_tables.extend(tables_mentioned)
+        join_tables = list(set(join_tables))  # Remover duplicados
+
+        return len(join_tables) > 0, join_tables
+
+    def _detect_fields_advanced(self, query_lower: str, table_info: Dict, join_tables: List[str]) -> List[str]:
+        """Detectar campos avanzado con soporte para JOINs"""
+        detected_fields = []
+        table_alias = self._get_table_alias(table_info)
+
+        # Campos de la tabla principal
+        for field in table_info['fields']:
+            field_clean = field.replace('_', ' ')
+            if field in query_lower or field_clean in query_lower:
+                detected_fields.append(f"{table_alias}.{field}")
+
+        # Si no se detectaron campos, usar defaults
+        if not detected_fields:
+            model_key = table_info.get('model', '').split('.')[-1].lower()
+            defaults = {
+                'patient': ['id', 'first_name', 'last_name', 'email', 'identity_document'],
+                'clinicalrecord': ['id', 'record_number', 'status', 'blood_type'],
+                'clinicalform': ['id', 'form_type', 'form_date', 'doctor_name'],
+                'clinicaldocument': ['id', 'document_type', 'title', 'document_date', 'is_signed'],
+                'user': ['id', 'email', 'first_name', 'last_name', 'specialty'],
+            }
+            default_fields = defaults.get(model_key, ['id'])
+            detected_fields = [f"{table_alias}.{f}" for f in default_fields]
+
+        # Agregar campos de tablas joineadas
+        if 'patient' in join_tables and table_alias != 'p':
+            detected_fields.extend([
+                "p.first_name",
+                "p.last_name",
+                "p.first_name || ' ' || p.last_name as patient_name"
+            ])
+
+        # Agregar created_at si no está
+        if f"{table_alias}.created_at" not in detected_fields:
+            detected_fields.append(f"{table_alias}.created_at")
+
+        return detected_fields
+
+    def _detect_filters_advanced(self, query_lower: str, table_info: Dict) -> Tuple[List[str], Dict]:
+        """Versión mejorada de detección de filtros con más patrones"""
+        # Usar el método existente como base
+        filters, params = self._detect_filters(query_lower, table_info)
+
+        # Agregar filtros de rango de edad
+        age_range_match = re.search(r'entre\s+(\d+)\s+y\s+(\d+)\s+años', query_lower)
+        if age_range_match:
+            age_min = int(age_range_match.group(1))
+            age_max = int(age_range_match.group(2))
+            current_year = datetime.now().year
+            birth_year_max = current_year - age_min
+            birth_year_min = current_year - age_max
+            filters.append("date_of_birth >= %(birth_date_min)s")
+            filters.append("date_of_birth <= %(birth_date_max)s")
+            params['birth_date_min'] = f"{birth_year_min}-01-01"
+            params['birth_date_max'] = f"{birth_year_max}-12-31"
+
+        # Filtros de género expandidos
+        if 'mujeres' in query_lower or 'femenino' in query_lower or 'female' in query_lower:
+            filters.append("gender = %(gender)s")
+            params['gender'] = 'F'
+        elif 'hombres' in query_lower or 'masculino' in query_lower or 'male' in query_lower:
+            filters.append("gender = %(gender)s")
+            params['gender'] = 'M'
+
+        return filters, params
+
+    def _detect_order_by(self, query_lower: str) -> str:
+        """Detectar ordenamiento de resultados"""
+        # Orden descendente
+        if 'desc' in query_lower or 'descend' in query_lower or 'reciente' in query_lower:
+            if 'nombre' in query_lower or 'name' in query_lower or 'paciente' in query_lower:
+                return "first_name DESC, last_name DESC"
+            return "created_at DESC"
+
+        # Orden ascendente
+        if 'asc' in query_lower or 'ascend' in query_lower or 'alfabético' in query_lower:
+            if 'nombre' in query_lower or 'name' in query_lower or 'paciente' in query_lower:
+                return "first_name ASC, last_name ASC"
+            return "created_at ASC"
+
+        # Default
+        return "created_at DESC"
+
+    def _build_sql_with_joins(
+        self,
+        table_name: str,
+        fields: List[str],
+        filters: List[str],
+        join_tables: List[str],
+        order_by: str,
+        limit: int
+    ) -> str:
+        """Construir SQL con soporte para JOINs"""
+        # Obtener nombre de tabla en BD
+        table_info = self.AVAILABLE_TABLES[table_name]
+        model_name = table_info['model']
+        app_label, model_class_name = model_name.split('.')
+        db_table = self._get_db_table_name(app_label, model_class_name)
+        table_alias = self._get_table_alias(table_info)
+
+        # SELECT clause
+        select_clause = ', '.join(fields) if fields else f'{table_alias}.*'
+        sql_parts = [f"SELECT {select_clause}"]
+
+        # FROM clause
+        sql_parts.append(f"FROM {db_table} {table_alias}")
+
+        # JOINs
+        if join_tables:
+            join_sql = self._build_joins(table_name, table_alias, join_tables)
+            sql_parts.append(join_sql)
+
+        # WHERE clause
+        if filters:
+            # Actualizar filtros para usar alias de tabla
+            filters_with_alias = []
+            for f in filters:
+                # Si el filtro no tiene alias de tabla, agregarlo
+                if '.' not in f and not f.startswith('EXISTS'):
+                    # Detectar el campo del filtro
+                    field_match = re.match(r'(\w+)\s+', f)
+                    if field_match:
+                        field = field_match.group(1)
+                        f = f.replace(field, f"{table_alias}.{field}", 1)
+                filters_with_alias.append(f)
+
+            sql_parts.append(f"WHERE {' AND '.join(filters_with_alias)}")
+
+        # ORDER BY clause
+        if '.' not in order_by and 'DESC' in order_by or 'ASC' in order_by:
+            # Agregar alias si no existe
+            order_parts = order_by.split(',')
+            order_with_alias = []
+            for part in order_parts:
+                part = part.strip()
+                if '.' not in part:
+                    field_name = part.split()[0]
+                    direction = part.split()[1] if len(part.split()) > 1 else ''
+                    order_with_alias.append(f"{table_alias}.{field_name} {direction}".strip())
+                else:
+                    order_with_alias.append(part)
+            order_by = ', '.join(order_with_alias)
+
+        sql_parts.append(f"ORDER BY {order_by}")
+
+        # LIMIT clause
+        sql_parts.append(f"LIMIT {limit}")
+
+        return ' '.join(sql_parts)
+
+    def _build_joins(self, table_name: str, table_alias: str, join_tables: List[str]) -> str:
+        """Construir cláusula JOINs"""
+        joins = []
+
+        # Mapeo de JOINs comunes
+        if table_name == 'clinical_form' or table_name == 'document':
+            if 'clinical_record' in join_tables or 'patient' in join_tables:
+                # JOIN con clinical_record
+                cr_table = self._get_db_table_name('clinical_records', 'ClinicalRecord')
+                joins.append(f"JOIN {cr_table} cr ON {table_alias}.clinical_record_id = cr.id")
+
+                if 'patient' in join_tables:
+                    # JOIN con patient
+                    p_table = self._get_db_table_name('patients', 'Patient')
+                    joins.append(f"JOIN {p_table} p ON cr.patient_id = p.id")
+
+        elif table_name == 'clinical_record':
+            if 'patient' in join_tables:
+                p_table = self._get_db_table_name('patients', 'Patient')
+                joins.append(f"JOIN {p_table} p ON {table_alias}.patient_id = p.id")
+
+        return '\n'.join(joins)
+
+    def _get_table_alias(self, table_info: Dict) -> str:
+        """Obtener alias recomendado para tabla"""
+        model_name = table_info['model'].split('.')[-1].lower()
+        alias_map = {
+            'patient': 'p',
+            'clinicalrecord': 'cr',
+            'clinicalform': 'cf',
+            'clinicaldocument': 'doc',
+            'user': 'u'
+        }
+        return alias_map.get(model_name, model_name[0])
+
+    def _parse_aggregation_query(self, query_text: str, query_lower: str, language: str) -> Dict:
+        """Parsear consultas con agregaciones (COUNT, SUM, AVG, etc)"""
+        # Detectar tabla principal
+        table_name = self._detect_table(query_lower)
+        if not table_name:
+            return {
+                'sql': '',
+                'params': {},
+                'confidence': 0.0,
+                'table_name': None,
+                'explanation': 'No se pudo determinar la tabla para agregación',
+                'provider': 'local',
+                'error': 'Tabla no identificada'
+            }
+
+        table_info = self.AVAILABLE_TABLES[table_name]
+        db_table = self._get_db_table_name(*table_info['model'].split('.'))
+        alias = self._get_table_alias(table_info)
+
+        # Detectar tipo de agregación
+        agg_function = 'COUNT(*)'
+        if 'suma' in query_lower or 'sum' in query_lower:
+            agg_function = 'SUM(id)'
+        elif 'promedio' in query_lower or 'average' in query_lower or 'avg' in query_lower:
+            agg_function = 'AVG(id)'
+        elif 'máximo' in query_lower or 'max' in query_lower:
+            agg_function = 'MAX(id)'
+        elif 'mínimo' in query_lower or 'min' in query_lower:
+            agg_function = 'MIN(id)'
+
+        # Detectar GROUP BY
+        group_by_fields = []
+        if 'por tipo' in query_lower or 'by type' in query_lower:
+            if 'form_type' in table_info['fields']:
+                group_by_fields.append(f'{alias}.form_type')
+            elif 'document_type' in table_info['fields']:
+                group_by_fields.append(f'{alias}.document_type')
+
+        if 'por especialidad' in query_lower or 'by specialty' in query_lower:
+            if 'specialty' in table_info['fields']:
+                group_by_fields.append(f'{alias}.specialty')
+            elif 'doctor_specialty' in table_info['fields']:
+                group_by_fields.append(f'{alias}.doctor_specialty')
+
+        if 'por paciente' in query_lower or 'by patient' in query_lower:
+            # Necesita JOIN con patient
+            group_by_fields = ['p.first_name', 'p.last_name', 'p.id']
+            needs_patient_join = True
+        else:
+            needs_patient_join = False
+
+        # Construir SQL
+        if group_by_fields:
+            select_fields = group_by_fields + [f'{agg_function} as total']
+            sql = f"SELECT {', '.join(select_fields)}\nFROM {db_table} {alias}"
+
+            # Agregar JOIN si es necesario
+            if needs_patient_join:
+                if table_name in ['clinical_form', 'document']:
+                    cr_table = self._get_db_table_name('clinical_records', 'ClinicalRecord')
+                    p_table = self._get_db_table_name('patients', 'Patient')
+                    sql += f"\nJOIN {cr_table} cr ON {alias}.clinical_record_id = cr.id"
+                    sql += f"\nJOIN {p_table} p ON cr.patient_id = p.id"
+                elif table_name == 'clinical_record':
+                    p_table = self._get_db_table_name('patients', 'Patient')
+                    sql += f"\nJOIN {p_table} p ON {alias}.patient_id = p.id"
+
+            # Filtros de fecha
+            filters, params = self._extract_date_filters(query_lower)
+            if filters:
+                filters_with_alias = [f.replace('created_at', f'{alias}.created_at') for f in filters]
+                sql += f"\nWHERE {' AND '.join(filters_with_alias)}"
+            else:
+                params = {}
+
+            sql += f"\nGROUP BY {', '.join(group_by_fields)}"
+            sql += f"\nORDER BY total DESC"
+            sql += f"\nLIMIT 100"
+        else:
+            # Agregación simple sin GROUP BY
+            sql = f"SELECT {agg_function} as total\nFROM {db_table} {alias}"
+            filters, params = self._extract_date_filters(query_lower)
+            if filters:
+                filters_with_alias = [f.replace('created_at', f'{alias}.created_at') for f in filters]
+                sql += f"\nWHERE {' AND '.join(filters_with_alias)}"
+            else:
+                params = {}
+
+        return {
+            'sql': sql,
+            'params': params,
+            'confidence': 0.80,
+            'table_name': table_name,
+            'explanation': f'Consulta de agregación ({agg_function}) en {table_name}',
+            'estimated_rows': 50,
+            'provider': 'local'
+        }
