@@ -1,0 +1,1 @@
+# Signals para reportes AI

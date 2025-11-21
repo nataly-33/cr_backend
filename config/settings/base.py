@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'apps.documents',
     'apps.audit',
     'apps.reports',
+    'apps.reports_ai',
     'apps.backup',
     'apps.seed',
     'apps.notifications',
@@ -256,6 +257,17 @@ AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='us-east-1')
 AWS_TEXTRACT_REGION = config('AWS_TEXTRACT_REGION', default='us-east-1')
 ENABLE_OCR = config('ENABLE_OCR', default=False, cast=bool)
 
+# ============================================================================
+# OPENAI - Reportes con IA
+# ============================================================================
+OPENAI_API_KEY = config('OPENAI_API_KEY', default=None)
+OPENAI_MODEL = config('OPENAI_MODEL', default='gpt-4-mini')
+
+# Límites de seguridad
+REPORTS_AI_MAX_ROWS = config('REPORTS_AI_MAX_ROWS', default=1000, cast=int)
+REPORTS_AI_MAX_QUERY_LENGTH = config('REPORTS_AI_MAX_QUERY_LENGTH', default=5000, cast=int)
+REPORTS_AI_EXECUTION_TIMEOUT = config('REPORTS_AI_EXECUTION_TIMEOUT', default=30, cast=int)
+
 # Configuración S3 (se aplica si USE_S3=True en cualquier ambiente)
 if USE_S3 or USE_S3_BACKUP:
     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com' if AWS_STORAGE_BUCKET_NAME else None
@@ -267,6 +279,12 @@ if USE_S3 or USE_S3_BACKUP:
     AWS_S3_VERIFY = True
     AWS_QUERYSTRING_AUTH = True
     AWS_QUERYSTRING_EXPIRE = 3600
+
+# ============================================================================
+# CLOUDWATCH - Logging en AWS
+# ============================================================================
+USE_CLOUDWATCH = config('USE_CLOUDWATCH', default=False, cast=bool)
+AWS_CLOUDWATCH_LOG_GROUP = config('AWS_CLOUDWATCH_LOG_GROUP', default='/clinidocs-audit')
 
 # ============================================================================
 # EMAIL - SendGrid
