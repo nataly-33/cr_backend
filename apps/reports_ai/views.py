@@ -171,7 +171,8 @@ class ReportsAIViewSet(viewsets.ViewSet):
                 executed_sql=sql_to_execute,
                 output_format=output_format,
                 row_limit=row_limit,
-                status='executing'
+                status='executing',
+                execution_time_ms=0  # Se actualizará después
             )
             
             # Ejecutar consulta
@@ -214,11 +215,13 @@ class ReportsAIViewSet(viewsets.ViewSet):
                 with open(filepath, mode) as f:
                     f.write(file_content)
                 
-                execution.file_path = f'/media/reports_ai/{filename}'
+                # Guardar solo la ruta relativa a MEDIA_ROOT
+                execution.file_path = f'reports_ai/{filename}'
                 execution.file_size_bytes = os.path.getsize(filepath)
                 execution.save()
                 
-                download_url = execution.file_path
+                # Para el response, devolver la URL correcta
+                download_url = f'/media/reports_ai/{filename}'
             
             response_data = {
                 'execution_id': execution.id,

@@ -199,26 +199,28 @@ class DirectQueryRequestSerializer(serializers.Serializer):
         min_length=5,
         max_length=1000
     )
-    
     language = serializers.ChoiceField(
         choices=['es', 'en'],
         default='es'
     )
-    
     output_format = serializers.ChoiceField(
         choices=['json', 'csv', 'excel', 'pdf'],
         default='json'
     )
-    
     row_limit = serializers.IntegerField(
         default=100,
         min_value=1,
         max_value=1000
     )
-    
     ai_provider = serializers.ChoiceField(
         choices=['openai', 'local'],
         default='openai'
+    )
+    input_method = serializers.ChoiceField(
+        choices=['text', 'voice'],
+        default='text',
+        required=False,
+        help_text="Método de entrada (opcional, por compatibilidad)"
     )
 
 

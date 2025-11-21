@@ -4,6 +4,7 @@ Servicio para ejecutar consultas SQL de manera segura
 import logging
 import time
 from typing import Dict, List, Any
+from uuid import UUID
 from django.db import connection
 from django.apps import apps
 
@@ -21,7 +22,7 @@ class SQLExecutorService:
         
         Args:
             sql: Consulta SQL
-            params: Parámetros de la consulta
+            params: Parámetros de la consulta (dict o None)
             row_limit: Límite de filas
         
         Returns:
@@ -42,7 +43,9 @@ class SQLExecutorService:
                 sql = f"{sql.rstrip(';')} LIMIT {row_limit}"
             
             with connection.cursor() as cursor:
-                cursor.execute(sql, params)
+                # Django requiere que params sea una tupla/lista, no un dict
+                # Si no hay params, pasar None en lugar de {}
+                cursor.execute(sql, None if not params else params)
                 
                 # Obtener columnas
                 columns = [col[0] for col in cursor.description]
@@ -60,6 +63,8 @@ class SQLExecutorService:
                             row_dict[columns[i]] = value.isoformat()
                         elif isinstance(value, bytes):
                             row_dict[columns[i]] = value.decode('utf-8', errors='ignore')
+                        elif isinstance(value, UUID):
+                            row_dict[columns[i]] = str(value)
                         else:
                             row_dict[columns[i]] = value
                     data.append(row_dict)
@@ -202,6 +207,7 @@ class SQLExecutorService:
         """Exportar a Excel"""
         from io import BytesIO
         from openpyxl import Workbook
+        import uuid
         
         wb = Workbook()
         ws = wb.active
@@ -210,9 +216,20 @@ class SQLExecutorService:
         # Headers
         ws.append(result_data['columns'])
         
-        # Data
+        # Data - convertir todos los valores a tipos simples
         for row_dict in result_data['data']:
-            row_values = [row_dict.get(col, '') for col in result_data['columns']]
+            row_values = []
+            for col in result_data['columns']:
+                value = row_dict.get(col, '')
+                # Convertir UUID a string
+                if isinstance(value, uuid.UUID):
+                    value = str(value)
+                # Convertir otros tipos especiales
+                elif hasattr(value, 'isoformat'):
+                    value = value.isoformat()
+                elif value is None:
+                    value = ''
+                row_values.append(value)
             ws.append(row_values)
         
         # Ajustar anchos
@@ -278,14 +295,7 @@ class SQLExecutorService:
             row = [str(row_dict.get(col, ''))[:50] for col in result_data['columns']]
             table_data.append(row)
         
-        # Limitar filas en PDF (máximo 50)
-        if len(table_data) > 51:
-            table_data = table_data[:51]
-            elements.append(Paragraph(
-                f"<i>Mostrando primeras 50 de {result_data['row_count']} filas</i>",
-                styles['Normal']
-            ))
-            elements.append(Spacer(1, 6))
+
         
         table = Table(table_data)
         table.setStyle(TableStyle([

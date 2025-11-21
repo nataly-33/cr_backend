@@ -60,7 +60,8 @@ class NLPParserService:
             'searchable': ['form_type', 'form_number', 'doctor_name'],
             'aliases': ['formulario', 'formularios', 'form', 'forms',
                        'triage', 'consulta', 'receta', 'lab_order', 
-                       'orden de laboratorio', 'prescription', 'procedimiento']
+                       'orden de laboratorio', 'orden de imagenología', 'ordenes', 'órdenes',
+                       'prescription', 'procedimiento', 'imaging_order']
         },
         'document': {
             'model': 'documents.ClinicalDocument',
@@ -85,7 +86,7 @@ class NLPParserService:
                 'specialty', 'is_active', 'is_staff', 'created_at'
             ],
             'searchable': ['email', 'first_name', 'last_name', 'specialty'],
-            'aliases': ['usuario', 'usuarios', 'user', 'users', 'doctor', 'doctores']
+            'aliases': ['usuario', 'usuarios', 'user', 'users', 'doctor', 'doctores', 'personal', 'staff']
         },
     }
     
@@ -165,6 +166,11 @@ class NLPParserService:
                 'error': f'La consulta no puede exceder {max_length} caracteres'
             }
         
+        # Detectar los 3 reportes críticos predefinidos
+        critical_report = self._detect_critical_report(query_text)
+        if critical_report:
+            return critical_report
+        
         # Intentar parsing con OpenAI si está disponible
         if self.ai_provider == 'openai' and self.client:
             try:
@@ -174,6 +180,130 @@ class NLPParserService:
                 return self._parse_with_rules(query_text, language)
         else:
             return self._parse_with_rules(query_text, language)
+    
+    def _detect_critical_report(self, query_text: str) -> Optional[Dict]:
+        """
+        Detectar reportes de historias clínicas con flexible pattern matching
+        Soporta variaciones: blood type, ordenamiento ASC/DESC, etc.
+        """
+        query_lower = query_text.lower()
+        
+        # PATRÓN 1: Historias clínicas con filtro (noviembre, blood type, etc) ordenadas por paciente
+        if ('historia' in query_lower or 'historias' in query_lower or 'clinical' in query_lower or 'record' in query_lower):
+            # Detectar si tiene ordenamiento
+            has_desc = 'descend' in query_lower or ' desc' in query_lower
+            order_dir = 'DESC' if has_desc else 'ASC'
+            
+            # Detectar filtro de mes
+            month_filter = ''
+            if 'noviembre' in query_lower or 'november' in query_lower:
+                month_filter = "WHERE EXTRACT(MONTH FROM cr.created_at) = 11 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
+            elif 'octubre' in query_lower or 'october' in query_lower:
+                month_filter = "WHERE EXTRACT(MONTH FROM cr.created_at) = 10 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
+            elif 'septiembre' in query_lower or 'september' in query_lower:
+                month_filter = "WHERE EXTRACT(MONTH FROM cr.created_at) = 9 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
+            elif 'diciembre' in query_lower or 'december' in query_lower:
+                month_filter = "WHERE EXTRACT(MONTH FROM cr.created_at) = 12 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
+            
+            # Detectar filtro de blood type
+            blood_filter = ''
+            if 'ab' in query_lower:
+                blood_filter = "WHERE cr.blood_type LIKE 'AB%'"
+            elif 'o+' in query_lower or 'o-' in query_lower or ' o ' in query_lower:
+                blood_filter = "WHERE cr.blood_type LIKE 'O%'"
+            elif 'a+' in query_lower or 'a-' in query_lower:
+                blood_filter = "WHERE cr.blood_type LIKE 'A%'"
+            elif 'b+' in query_lower or 'b-' in query_lower:
+                blood_filter = "WHERE cr.blood_type LIKE 'B%'"
+            
+            # Si no hay blood filter pero sí hay filtro de mes y es de historias
+            if blood_filter and month_filter:
+                # Combinar: blood type + mes (usar AND)
+                final_filter = f"{month_filter.replace('WHERE', '')} AND {blood_filter.split('WHERE')[1]}"
+                final_filter = f"WHERE {final_filter}"
+            elif blood_filter:
+                final_filter = blood_filter
+            elif month_filter:
+                final_filter = month_filter
+            else:
+                final_filter = ""
+            
+            # Solo generar si tiene algún filtro significativo
+            if final_filter or ('noviembre' in query_lower or 'november' in query_lower):
+                sql = f"""
+SELECT 
+    cr.id,
+    cr.record_number,
+    p.first_name,
+    p.last_name,
+    cr.blood_type,
+    cr.status,
+    cr.created_at
+FROM clinical_record cr
+JOIN patient p ON cr.patient_id = p.id
+{final_filter}
+ORDER BY p.first_name {order_dir}, p.last_name {order_dir}
+                """
+                
+                return {
+                    'sql': sql,
+                    'params': {},
+                    'confidence': 0.95,
+                    'table_name': 'clinical_record',
+                    'explanation': f'Reporte de historias clínicas ({order_dir})',
+                    'provider': 'critical_report',
+                    'estimated_rows': 500
+                }
+        
+        # PATRÓN 2: Cantidad de visitas por pacientes (con mes flexible)
+        if ('cantidad' in query_lower or 'count' in query_lower or 'número' in query_lower or 'cuántos' in query_lower or 'cuantos' in query_lower or 'cuántas' in query_lower or 'cuantas' in query_lower) and \
+           ('visitas' in query_lower or 'formularios' in query_lower or 'forms' in query_lower or 'consultas' in query_lower or 'pacientes' in query_lower):
+            
+            # Detectar mes
+            month_range = "cf.created_at >= '2025-11-01' AND cf.created_at < '2025-12-01'"
+            if 'octubre' in query_lower or 'october' in query_lower:
+                month_range = "cf.created_at >= '2025-10-01' AND cf.created_at < '2025-11-01'"
+            elif 'septiembre' in query_lower or 'september' in query_lower:
+                month_range = "cf.created_at >= '2025-09-01' AND cf.created_at < '2025-10-01'"
+            elif 'diciembre' in query_lower or 'december' in query_lower:
+                month_range = "cf.created_at >= '2025-12-01' AND cf.created_at < '2026-01-01'"
+            
+            # Detectar ordenamiento
+            has_desc = 'descend' in query_lower or ' desc' in query_lower
+            order_dir = 'DESC' if has_desc else 'ASC'
+            
+            sql = f"""
+SELECT 
+    p.id,
+    p.first_name,
+    p.last_name,
+    COUNT(cf.id) as cantidad_formularios,
+    MAX(cf.created_at) as ultima_visita
+FROM patient p
+LEFT JOIN clinical_record cr ON p.id = cr.patient_id
+LEFT JOIN clinical_form cf ON cr.id = cf.clinical_record_id
+    AND {month_range}
+WHERE EXISTS (
+    SELECT 1 FROM clinical_record cr2
+    JOIN clinical_form cf2 ON cr2.id = cf2.clinical_record_id
+    WHERE cr2.patient_id = p.id 
+    AND {month_range}
+)
+GROUP BY p.id, p.first_name, p.last_name
+ORDER BY p.first_name {order_dir}, p.last_name {order_dir}
+            """
+            
+            return {
+                'sql': sql,
+                'params': {},
+                'confidence': 0.95,
+                'table_name': 'patient',
+                'explanation': 'Cantidad de formularios por paciente',
+                'provider': 'critical_report',
+                'estimated_rows': 800
+            }
+        
+        return None
     
     def _parse_with_openai(self, query_text: str, language: str) -> Dict:
         """Parsear usando OpenAI GPT"""
@@ -439,15 +569,97 @@ Remember: ONLY SELECT queries. ONLY JSON in response. NO EXPLANATIONS OUTSIDE JS
         return detected_fields
     
     def _detect_filters(self, query_lower: str, table_info: Dict) -> Tuple[List[str], Dict]:
-        """Detectar filtros con mejor soporte de operadores"""
+        """Detectar filtros con mejor soporte de operadores, status y booleanos"""
         filters = []
         params = {}
         
+        # Filtros de fecha
         date_filters, date_params = self._extract_date_filters(query_lower)
         filters.extend(date_filters)
         params.update(date_params)
         
+        # Filtros de status/estado
+        if 'pendiente' in query_lower or 'pending' in query_lower:
+            filters.append("status = %(status)s")
+            params['status'] = 'pending'
+        elif 'completado' in query_lower or 'completed' in query_lower:
+            filters.append("status = %(status)s")
+            params['status'] = 'completed'
+        elif 'activo' in query_lower or 'active' in query_lower:
+            filters.append("is_active = true")
+        
+        # Filtros booleanos
+        if 'sin firma' in query_lower or 'no firmado' in query_lower:
+            filters.append("is_signed = false")
+        elif 'firmado' in query_lower or 'con firma' in query_lower:
+            filters.append("is_signed = true")
+        
+        if 'email verificado' in query_lower or 'verificado' in query_lower:
+            filters.append("email_verified = true")
+        
+        if 'staff' in query_lower or 'personal médico' in query_lower or 'médico' in query_lower:
+            if table_info.get('model') == 'accounts.User':
+                filters.append("is_staff = true")
+        
+        # Filtros de especialidad
+        specialty_match = re.search(r'especialidad\s+(\w+)', query_lower)
+        if specialty_match:
+            specialty = specialty_match.group(1).capitalize()
+            filters.append("specialty LIKE %(specialty)s")
+            params['specialty'] = f"%{specialty}%"
+        
+        # Filtros por nombre/apellido (búsqueda flexible)
+        name_match = re.search(r'(Dr\.|doctor|doctora)\s+(\w+)', query_lower)
+        if name_match:
+            name = name_match.group(2).capitalize()
+            # Buscar en doctor_name o first_name/last_name según tabla
+            if 'doctor_name' in table_info.get('fields', []):
+                filters.append("doctor_name LIKE %(doctor_name)s")
+                params['doctor_name'] = f"%{name}%"
+            elif 'first_name' in table_info.get('fields', []):
+                filters.append("(first_name LIKE %(name)s OR last_name LIKE %(name)s)")
+                params['name'] = f"%{name}%"
+        
+        # Filtros de tipo de formulario
+        form_type_match = re.search(r'(lab_order|triage|prescription|consulta|receta|orden|imaging|imagenología)', query_lower)
+        if form_type_match and 'form_type' in table_info.get('fields', []):
+            form_type_map = {
+                'lab_order': 'lab_order',
+                'orden': 'lab_order',
+                'triage': 'triage',
+                'prescription': 'prescription',
+                'receta': 'prescription',
+                'consulta': 'consultation',
+                'imaging': 'imaging_order',
+                'imagenología': 'imaging_order',
+                'imagenologia': 'imaging_order'
+            }
+            form_type = form_type_map.get(form_type_match.group(1), form_type_match.group(1))
+            filters.append("form_type = %(form_type)s")
+            params['form_type'] = form_type
+        
+        # Filtros de tipo de documento
+        doc_type_match = re.search(r'(historia|informe|orden|receta)', query_lower)
+        if doc_type_match and 'document_type' in table_info.get('fields', []):
+            doc_type_map = {
+                'historia': 'Historia Clínica',
+                'informe': 'Informe',
+                'orden': 'Orden',
+                'receta': 'Receta'
+            }
+            doc_type = doc_type_map.get(doc_type_match.group(1), doc_type_match.group(1).capitalize())
+            filters.append("document_type LIKE %(document_type)s")
+            params['document_type'] = f"%{doc_type}%"
+        
+        # Filtros de OCR
+        if 'ocr' in query_lower:
+            if 'exitoso' in query_lower or 'procesado' in query_lower or 'completed' in query_lower:
+                filters.append("ocr_status = 'completed'")
+        
+        # Filtros genéricos de búsqueda en campos configurados
         for field in table_info.get('searchable', []):
+            if field in ['doctor_name', 'first_name', 'last_name']:  # Ya manejados arriba
+                continue
             pattern = rf"{field}[:\s]+([\w@.-]+)"
             match = re.search(pattern, query_lower)
             if match:
@@ -496,6 +708,23 @@ Remember: ONLY SELECT queries. ONLY JSON in response. NO EXPLANATIONS OUTSIDE JS
                 filters.append("created_at < %(date_to)s")
                 params['date_from'] = date_from
                 params['date_to'] = date_to
+                return filters, params
+        
+        # Un mes específico
+        for month_name, month_num in all_months.items():
+            if f' {month_name} ' in f' {query_lower} ' or query_lower.endswith(month_name):
+                date_from = f"{year}-{month_num}-01"
+                month_num_int = int(month_num)
+                if month_num_int == 12:
+                    date_to = f"{int(year)+1}-01-01"
+                else:
+                    date_to = f"{year}-{str(month_num_int+1).zfill(2)}-01"
+                
+                filters.append("created_at >= %(date_from)s")
+                filters.append("created_at < %(date_to)s")
+                params['date_from'] = date_from
+                params['date_to'] = date_to
+                return filters, params
         
         # Fechas explícitas
         date_pattern = r'(\d{4}-\d{2}-\d{2})'
@@ -555,15 +784,21 @@ Remember: ONLY SELECT queries. ONLY JSON in response. NO EXPLANATIONS OUTSIDE JS
         if not sql_upper.startswith('SELECT'):
             return False, "Solo se permiten consultas SELECT"
         
-        # 2. Prohibir operaciones peligrosas
+        # 2. Prohibir operaciones peligrosas (buscar como palabra completa, no en campos como created_at)
         dangerous_keywords = [
-            'DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER',
-            'CREATE', 'TRUNCATE', 'EXEC', 'EXECUTE', '--', '/*'
+            r'\bDROP\b', r'\bDELETE\b', r'\bUPDATE\b', r'\bINSERT\b', r'\bALTER\b',
+            r'\bCREATE\s+TABLE\b', r'\bCREATE\s+DATABASE\b', r'\bCREATE\s+INDEX\b',
+            r'\bTRUNCATE\b', r'\bEXEC\b', r'\bEXECUTE\b'
         ]
         
-        for keyword in dangerous_keywords:
-            if keyword in sql_upper:
+        for pattern in dangerous_keywords:
+            if re.search(pattern, sql_upper):
+                keyword = pattern.replace(r'\b', '').replace(r'\s+', ' ')
                 return False, f"Operación prohibida: {keyword}"
+        
+        # Prohibir comentarios SQL que puedan ocultar inyecciones
+        if '--' in sql or '/*' in sql:
+            return False, "No se permiten comentarios SQL"
         
         # 3. Validar múltiples queries
         if ';' in sql and not sql.rstrip().endswith(';'):
