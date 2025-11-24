@@ -189,124 +189,214 @@ class NLPParserService:
     
     def _detect_critical_report(self, query_text: str) -> Optional[Dict]:
         """
-        Detectar reportes de historias clínicas con flexible pattern matching
-        Soporta variaciones: blood type, ordenamiento ASC/DESC, etc.
+        Detectar reportes CRÍTICOS que necesitas para defensa:
+        1. Historias clínicas con tipo de sangre (AB, O, A, B) + ordenamiento ASC/DESC
+        2. Historias clínicas creadas en un mes específico + ordenamiento ASC/DESC
+        3. Cantidad de formularios por paciente (visitas al hospital)
         """
         query_lower = query_text.lower()
         
-        # PATRÓN 1: Historias clínicas con filtro (noviembre, blood type, etc) ordenadas por paciente
-        if ('historia' in query_lower or 'historias' in query_lower or 'clinical' in query_lower or 'record' in query_lower):
-            # Detectar si tiene ordenamiento
-            has_desc = 'descend' in query_lower or ' desc' in query_lower
-            order_dir = 'DESC' if has_desc else 'ASC'
-            
-            # Detectar filtro de mes
-            month_filter = ''
-            if 'noviembre' in query_lower or 'november' in query_lower:
-                month_filter = "WHERE EXTRACT(MONTH FROM cr.created_at) = 11 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
-            elif 'octubre' in query_lower or 'october' in query_lower:
-                month_filter = "WHERE EXTRACT(MONTH FROM cr.created_at) = 10 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
-            elif 'septiembre' in query_lower or 'september' in query_lower:
-                month_filter = "WHERE EXTRACT(MONTH FROM cr.created_at) = 9 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
-            elif 'diciembre' in query_lower or 'december' in query_lower:
-                month_filter = "WHERE EXTRACT(MONTH FROM cr.created_at) = 12 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
-            
-            # Detectar filtro de blood type
-            blood_filter = ''
-            if 'ab' in query_lower:
-                blood_filter = "WHERE cr.blood_type LIKE 'AB%'"
-            elif 'o+' in query_lower or 'o-' in query_lower or ' o ' in query_lower:
-                blood_filter = "WHERE cr.blood_type LIKE 'O%'"
-            elif 'a+' in query_lower or 'a-' in query_lower:
-                blood_filter = "WHERE cr.blood_type LIKE 'A%'"
-            elif 'b+' in query_lower or 'b-' in query_lower:
-                blood_filter = "WHERE cr.blood_type LIKE 'B%'"
-            
-            # Si no hay blood filter pero sí hay filtro de mes y es de historias
-            if blood_filter and month_filter:
-                # Combinar: blood type + mes (usar AND)
-                final_filter = f"{month_filter.replace('WHERE', '')} AND {blood_filter.split('WHERE')[1]}"
-                final_filter = f"WHERE {final_filter}"
-            elif blood_filter:
-                final_filter = blood_filter
-            elif month_filter:
-                final_filter = month_filter
+        # ========== PATRÓN 1: HISTORIAS CLÍNICAS CON TIPO DE SANGRE ==========
+        # Detección de tipo de sangre: AB, O, A, B (con o sin +/-)
+        blood_type_keywords = ['sangre', 'blood', 'tipo de sangre', 'tipo sangre', 'blood type']
+        has_blood_mention = any(kw in query_lower for kw in blood_type_keywords)
+        
+        # Detectar tipos específicos
+        blood_filter = None
+        blood_explanation = ""
+        
+        # AB (captura AB+, AB-, o solo AB)
+        if has_blood_mention or 'ab+' in query_lower or 'ab-' in query_lower or ' ab ' in query_lower or query_lower.startswith('ab ') or query_lower.endswith(' ab'):
+            # Si solo dice "AB" sin +/-, incluir ambos (AB+ y AB-)
+            if 'ab+' in query_lower:
+                blood_filter = "cr.blood_type = 'AB+'"
+                blood_explanation = "AB+"
+            elif 'ab-' in query_lower:
+                blood_filter = "cr.blood_type = 'AB-'"
+                blood_explanation = "AB-"
+            elif 'ab' in query_lower:
+                blood_filter = "cr.blood_type LIKE 'AB%'"
+                blood_explanation = "AB (AB+ y AB-)"
+        
+        # Tipo O
+        elif has_blood_mention or 'o+' in query_lower or 'o-' in query_lower or ' o ' in query_lower or query_lower.startswith('o ') or query_lower.endswith(' o'):
+            if 'o+' in query_lower:
+                blood_filter = "cr.blood_type = 'O+'"
+                blood_explanation = "O+"
+            elif 'o-' in query_lower:
+                blood_filter = "cr.blood_type = 'O-'"
+                blood_explanation = "O-"
+            elif ' o ' in query_lower or query_lower.startswith('o ') or query_lower.endswith(' o'):
+                blood_filter = "cr.blood_type LIKE 'O%'"
+                blood_explanation = "O (O+ y O-)"
+        
+        # Tipo A (pero NO AB)
+        elif (has_blood_mention or 'a+' in query_lower or 'a-' in query_lower) and 'ab' not in query_lower:
+            if 'a+' in query_lower:
+                blood_filter = "cr.blood_type = 'A+'"
+                blood_explanation = "A+"
+            elif 'a-' in query_lower:
+                blood_filter = "cr.blood_type = 'A-'"
+                blood_explanation = "A-"
             else:
-                final_filter = ""
+                blood_filter = "cr.blood_type LIKE 'A%' AND cr.blood_type NOT LIKE 'AB%'"
+                blood_explanation = "A (A+ y A-)"
+        
+        # Tipo B (pero NO AB)
+        elif (has_blood_mention or 'b+' in query_lower or 'b-' in query_lower) and 'ab' not in query_lower:
+            if 'b+' in query_lower:
+                blood_filter = "cr.blood_type = 'B+'"
+                blood_explanation = "B+"
+            elif 'b-' in query_lower:
+                blood_filter = "cr.blood_type = 'B-'"
+                blood_explanation = "B-"
+            else:
+                blood_filter = "cr.blood_type LIKE 'B%' AND cr.blood_type NOT LIKE 'AB%'"
+                blood_explanation = "B (B+ y B-)"
+        
+        # ========== PATRÓN 2: HISTORIAS CLÍNICAS CREADAS EN UN MES ==========
+        # Detectar meses
+        month_filter = None
+        month_explanation = ""
+        
+        if 'noviembre' in query_lower or 'november' in query_lower:
+            month_filter = "EXTRACT(MONTH FROM cr.created_at) = 11 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
+            month_explanation = "noviembre 2025"
+        elif 'octubre' in query_lower or 'october' in query_lower:
+            month_filter = "EXTRACT(MONTH FROM cr.created_at) = 10 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
+            month_explanation = "octubre 2025"
+        elif 'septiembre' in query_lower or 'september' in query_lower:
+            month_filter = "EXTRACT(MONTH FROM cr.created_at) = 9 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
+            month_explanation = "septiembre 2025"
+        elif 'diciembre' in query_lower or 'december' in query_lower:
+            month_filter = "EXTRACT(MONTH FROM cr.created_at) = 12 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
+            month_explanation = "diciembre 2025"
+        elif 'agosto' in query_lower or 'august' in query_lower:
+            month_filter = "EXTRACT(MONTH FROM cr.created_at) = 8 AND EXTRACT(YEAR FROM cr.created_at) = 2025"
+            month_explanation = "agosto 2025"
+        
+        # Detectar si es consulta de historias clínicas
+        is_historia_query = any(kw in query_lower for kw in ['historia', 'historias', 'clinical record', 'clinical records', 'expediente', 'expedientes'])
+        
+        # Si tiene filtro de tipo de sangre O mes, generar SQL de historias clínicas
+        if is_historia_query and (blood_filter or month_filter):
+            # Combinar filtros
+            where_clauses = []
+            if blood_filter:
+                where_clauses.append(blood_filter)
+            if month_filter:
+                where_clauses.append(month_filter)
             
-            # Solo generar si tiene algún filtro significativo
-            if final_filter or ('noviembre' in query_lower or 'november' in query_lower):
-                sql = f"""
+            where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+            
+            # Detectar ordenamiento (ascendente o descendente)
+            has_desc = 'descend' in query_lower or 'descendente' in query_lower or ' desc' in query_lower
+            order_dir = 'DESC' if has_desc else 'ASC'
+            order_explanation = "descendente" if has_desc else "ascendente"
+            
+            # Explicación completa
+            filters_desc = []
+            if blood_explanation:
+                filters_desc.append(f"tipo de sangre {blood_explanation}")
+            if month_explanation:
+                filters_desc.append(f"creadas en {month_explanation}")
+            
+            explanation = f"Historias clínicas"
+            if filters_desc:
+                explanation += " con " + " y ".join(filters_desc)
+            explanation += f", ordenadas {order_explanation} por paciente"
+            
+            sql = f"""
 SELECT 
     cr.id,
     cr.record_number,
     p.first_name,
     p.last_name,
+    p.identity_document,
     cr.blood_type,
     cr.status,
     cr.created_at
 FROM clinical_record cr
 JOIN patient p ON cr.patient_id = p.id
-{final_filter}
+{where_clause}
 ORDER BY p.first_name {order_dir}, p.last_name {order_dir}
-                """
-                
-                return {
-                    'sql': sql,
-                    'params': {},
-                    'confidence': 0.95,
-                    'table_name': 'clinical_record',
-                    'explanation': f'Reporte de historias clínicas ({order_dir})',
-                    'provider': 'critical_report',
-                    'estimated_rows': 500
-                }
-        
-        # PATRÓN 2: Cantidad de visitas por pacientes (con mes flexible)
-        if ('cantidad' in query_lower or 'count' in query_lower or 'número' in query_lower or 'cuántos' in query_lower or 'cuantos' in query_lower or 'cuántas' in query_lower or 'cuantas' in query_lower) and \
-           ('visitas' in query_lower or 'formularios' in query_lower or 'forms' in query_lower or 'consultas' in query_lower or 'pacientes' in query_lower):
+LIMIT 500
+            """
             
-            # Detectar mes
-            month_range = "cf.created_at >= '2025-11-01' AND cf.created_at < '2025-12-01'"
+            return {
+                'sql': sql,
+                'params': {},
+                'confidence': 0.98,
+                'table_name': 'clinical_record',
+                'explanation': explanation,
+                'provider': 'critical_report_historias',
+                'estimated_rows': 500
+            }
+        
+        # ========== PATRÓN 3: CANTIDAD DE FORMULARIOS POR PACIENTE (VISITAS) ==========
+        cantidad_keywords = ['cantidad', 'count', 'número', 'numero', 'cuántos', 'cuantos', 'cuántas', 'cuantas', 'veces que', 'veces']
+        visitas_keywords = ['visitas', 'visitó', 'visito', 'asistió', 'asistio', 'acudió', 'acudio', 'fue', 'vino', 'formularios', 'forms', 'consultas']
+        
+        has_cantidad = any(kw in query_lower for kw in cantidad_keywords)
+        has_visitas = any(kw in query_lower for kw in visitas_keywords)
+        has_paciente = 'paciente' in query_lower or 'patient' in query_lower
+        
+        if (has_cantidad or has_visitas) and (has_paciente or has_visitas):
+            # Detectar mes (si no se especifica, usar noviembre por defecto)
+            month_range = "cf.form_date >= '2025-11-01' AND cf.form_date < '2025-12-01'"
+            month_explanation = "noviembre 2025"
+            
             if 'octubre' in query_lower or 'october' in query_lower:
-                month_range = "cf.created_at >= '2025-10-01' AND cf.created_at < '2025-11-01'"
+                month_range = "cf.form_date >= '2025-10-01' AND cf.form_date < '2025-11-01'"
+                month_explanation = "octubre 2025"
             elif 'septiembre' in query_lower or 'september' in query_lower:
-                month_range = "cf.created_at >= '2025-09-01' AND cf.created_at < '2025-10-01'"
+                month_range = "cf.form_date >= '2025-09-01' AND cf.form_date < '2025-10-01'"
+                month_explanation = "septiembre 2025"
             elif 'diciembre' in query_lower or 'december' in query_lower:
-                month_range = "cf.created_at >= '2025-12-01' AND cf.created_at < '2026-01-01'"
+                month_range = "cf.form_date >= '2025-12-01' AND cf.form_date < '2026-01-01'"
+                month_explanation = "diciembre 2025"
+            elif 'agosto' in query_lower or 'august' in query_lower:
+                month_range = "cf.form_date >= '2025-08-01' AND cf.form_date < '2025-09-01'"
+                month_explanation = "agosto 2025"
+            elif '2025' in query_lower and not any(m in query_lower for m in ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']):
+                # Si solo dice 2025 sin mes, todo el año
+                month_range = "cf.form_date >= '2025-01-01' AND cf.form_date < '2026-01-01'"
+                month_explanation = "todo 2025"
             
             # Detectar ordenamiento
-            has_desc = 'descend' in query_lower or ' desc' in query_lower
+            has_desc = 'descend' in query_lower or 'descendente' in query_lower or ' desc' in query_lower
             order_dir = 'DESC' if has_desc else 'ASC'
+            order_explanation = "descendente" if has_desc else "ascendente"
             
             sql = f"""
 SELECT 
     p.id,
     p.first_name,
     p.last_name,
+    p.identity_document,
     COUNT(cf.id) as cantidad_formularios,
-    MAX(cf.created_at) as ultima_visita
+    MIN(cf.form_date) as primera_visita,
+    MAX(cf.form_date) as ultima_visita
 FROM patient p
-LEFT JOIN clinical_record cr ON p.id = cr.patient_id
-LEFT JOIN clinical_form cf ON cr.id = cf.clinical_record_id
-    AND {month_range}
-WHERE EXISTS (
-    SELECT 1 FROM clinical_record cr2
-    JOIN clinical_form cf2 ON cr2.id = cf2.clinical_record_id
-    WHERE cr2.patient_id = p.id 
-    AND {month_range}
-)
-GROUP BY p.id, p.first_name, p.last_name
+JOIN clinical_record cr ON p.id = cr.patient_id
+JOIN clinical_form cf ON cr.id = cf.clinical_record_id
+WHERE {month_range}
+GROUP BY p.id, p.first_name, p.last_name, p.identity_document
+HAVING COUNT(cf.id) > 0
 ORDER BY p.first_name {order_dir}, p.last_name {order_dir}
+LIMIT 500
             """
+            
+            explanation = f"Cantidad de veces que cada paciente asistió a la clínica en {month_explanation} (contando formularios clínicos), ordenados {order_explanation}"
             
             return {
                 'sql': sql,
                 'params': {},
-                'confidence': 0.95,
-                'table_name': 'patient',
-                'explanation': 'Cantidad de formularios por paciente',
-                'provider': 'critical_report',
-                'estimated_rows': 800
+                'confidence': 0.98,
+                'table_name': 'clinical_form',
+                'explanation': explanation,
+                'provider': 'critical_report_visitas',
+                'estimated_rows': 500
             }
         
         return None
