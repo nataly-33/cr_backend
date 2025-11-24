@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'apps.notifications',
     'apps.payments',
     'apps.ai',
+    'apps.dicom',
 ]
 
 MIDDLEWARE = [
@@ -216,6 +217,7 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Backup', 'description': 'Sistema de backup'},
         {'name': 'Clinical Forms', 'description': 'Formularios clínicos'},
         {'name': 'Clinical Records', 'description': 'Historias clínicas'},
+        {'name': 'DICOM', 'description': 'Estudios DICOM - Imagenología médica (CT, MRI, X-Ray)'},
         {'name': 'Documents', 'description': 'Documentos clínicos'},
         {'name': 'Notifications', 'description': 'Sistema de notificaciones'},
         {'name': 'Patients', 'description': 'Gestión de pacientes'},

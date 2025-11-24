@@ -92,6 +92,14 @@ class PermissionCodes:
     DASHBOARD_VIEW = 'dashboard.view'
     DASHBOARD_VIEW_GLOBAL = 'dashboard.view_global'
 
+    # DICOM (Estudios de Imagenología)
+    DICOM_CREATE = 'dicom.create'
+    DICOM_READ = 'dicom.read'
+    DICOM_UPDATE = 'dicom.update'
+    DICOM_DELETE = 'dicom.delete'
+    DICOM_EXPORT = 'dicom.export'
+    DICOM_STREAM = 'dicom.stream'
+
 
 # ============================================================================
 # PERMISOS BASE
@@ -394,18 +402,44 @@ class CanViewAuditLogs(BasePermission):
 class CanGenerateReports(BasePermission):
     """Permiso: Generar reportes"""
     message = "No tienes permiso para generar reportes."
-    
+
     def has_permission(self, request, view):
         if not request.user.is_authenticated:
             return False
-        
+
         action = getattr(view, 'action', None)
-        
+
         if action in ['list', 'retrieve']:
             return request.user.has_permission(PermissionCodes.REPORT_READ)
         elif action == 'create' or action == 'generate':
             return request.user.has_permission(PermissionCodes.REPORT_CREATE)
-        
+
+        return False
+
+
+class CanManageDicom(BasePermission):
+    """Permiso: Gestionar estudios DICOM"""
+    message = "No tienes permiso para gestionar estudios DICOM."
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+
+        action = getattr(view, 'action', None)
+
+        if action in ['list', 'retrieve', 'metadata', 'image_ids', 'file']:
+            return request.user.has_permission(PermissionCodes.DICOM_READ)
+        elif action in ['upload', 'upload_zip', 'create']:
+            return request.user.has_permission(PermissionCodes.DICOM_CREATE)
+        elif action in ['update', 'partial_update']:
+            return request.user.has_permission(PermissionCodes.DICOM_UPDATE)
+        elif action == 'destroy':
+            return request.user.has_permission(PermissionCodes.DICOM_DELETE)
+        elif action in ['stream', 'download']:
+            return request.user.has_permission(PermissionCodes.DICOM_STREAM)
+        elif action in ['access_log']:
+            return request.user.has_permission(PermissionCodes.DICOM_READ)
+
         return False
 
 
